@@ -71,6 +71,16 @@ internal interface IMMDevice
 }
 
 [ComImport]
+[Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IMMDeviceCollection
+{
+    int GetCount(out int count);
+
+    int Item(int index, out IMMDevice device);
+}
+
+[ComImport]
 [Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IAudioSessionManager2
@@ -202,4 +212,47 @@ internal interface IAudioSessionEvents
     int OnStateChanged(AudioSessionState state);
 
     int OnSessionDisconnected(int disconnectReason);
+}
+
+/// <summary>
+/// Undocumented interface used to change the default endpoint (<c>SetDefaultEndpoint</c>) since
+/// Windows exposes no public API for it. This is the same mechanism SoundSwitch and similar
+/// switcher tools use. The GUIDs and vtable order below are the community-established values for
+/// Windows 7 and later; unused members are declared only to keep vtable slot order correct and are
+/// never invoked, so their parameter marshaling is not exercised.
+/// </summary>
+[ComImport]
+[Guid("F8679F50-850A-41CF-9C72-430F290290C8")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IPolicyConfig
+{
+    int GetMixFormat([MarshalAs(UnmanagedType.LPWStr)] string deviceId, out IntPtr format);
+
+    int GetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string deviceId, [MarshalAs(UnmanagedType.Bool)] bool useDefault, out IntPtr format);
+
+    int ResetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
+    int SetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string deviceId, IntPtr endpointFormat, IntPtr mixFormat);
+
+    int GetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string deviceId, [MarshalAs(UnmanagedType.Bool)] bool useDefault, out long defaultPeriod, out long minimumPeriod);
+
+    int SetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string deviceId, long period);
+
+    int GetShareMode([MarshalAs(UnmanagedType.LPWStr)] string deviceId, out IntPtr shareMode);
+
+    int SetShareMode([MarshalAs(UnmanagedType.LPWStr)] string deviceId, IntPtr shareMode);
+
+    int GetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string deviceId, [MarshalAs(UnmanagedType.Bool)] bool fxStore, IntPtr key, out IntPtr value);
+
+    int SetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string deviceId, [MarshalAs(UnmanagedType.Bool)] bool fxStore, IntPtr key, IntPtr value);
+
+    int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string deviceId, ERole role);
+
+    int SetEndpointVisibility([MarshalAs(UnmanagedType.LPWStr)] string deviceId, [MarshalAs(UnmanagedType.Bool)] bool visible);
+}
+
+[ComImport]
+[Guid("870AF99C-171D-4F9E-AF0D-E63DF40C2BC9")]
+internal class PolicyConfigClientComObject
+{
 }
