@@ -20,6 +20,15 @@
         <SolidColorBrush x:Key="MutedTextBrush" Color="#8A8A93"/>
         <SolidColorBrush x:Key="ThumbBrush" Color="#3D8EF5"/>
         <SolidColorBrush x:Key="ThumbStrokeBrush" Color="#1F5FBF"/>
+        <LinearGradientBrush x:Key="ThumbMetalBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#EDEDF1" Offset="0.0"/>
+            <GradientStop Color="#C2C2C9" Offset="0.18"/>
+            <GradientStop Color="#8C8C94" Offset="0.5"/>
+            <GradientStop Color="#5A5A61" Offset="0.82"/>
+            <GradientStop Color="#37373C" Offset="1.0"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="ThumbMetalStrokeBrush" Color="#1C1C1F"/>
+        <SolidColorBrush x:Key="ThumbHighlightBrush" Color="#FFFFFF" Opacity="0.4"/>
         <SolidColorBrush x:Key="MeterGreenBrush" Color="#4CAF6D"/>
         <SolidColorBrush x:Key="MeterYellowBrush" Color="#E8B23D"/>
         <SolidColorBrush x:Key="MeterRedDimBrush" Color="#4A2A2A"/>
@@ -41,17 +50,25 @@
             </Setter>
         </Style>
 
-        <!-- Circular blue fader knob, matching the reference mockup's thumb. -->
+        <!-- Brushed-metal fader cap: a silver-to-charcoal gradient body with a sheen highlight and an amber center groove, like a physical mixing console fader. -->
         <Style x:Key="FaderThumbStyle" TargetType="Thumb">
             <Setter Property="OverridesDefaultStyle" Value="True"/>
-            <Setter Property="Height" Value="22"/>
-            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Width" Value="36"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Ellipse Fill="{StaticResource ThumbBrush}"
-                                 Stroke="{StaticResource ThumbStrokeBrush}"
-                                 StrokeThickness="1.5"/>
+                        <Grid>
+                            <Rectangle Fill="{StaticResource ThumbMetalBrush}"
+                                       Stroke="{StaticResource ThumbMetalStrokeBrush}"
+                                       StrokeThickness="1"
+                                       RadiusX="3" RadiusY="3"/>
+                            <Rectangle Height="4" Margin="3,2,3,0" VerticalAlignment="Top"
+                                       Fill="{StaticResource ThumbHighlightBrush}"
+                                       RadiusX="2" RadiusY="2"/>
+                            <Rectangle Height="2" Margin="4,0" VerticalAlignment="Center"
+                                       Fill="{StaticResource AmberBrush}"/>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
