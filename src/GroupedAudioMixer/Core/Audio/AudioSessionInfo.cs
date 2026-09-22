@@ -1,0 +1,15 @@
+namespace GroupedAudioMixer.Core.Audio;
+
+/// <summary>
+/// A live Windows audio session, as reported by an <see cref="IAudioSessionProvider"/>.
+/// </summary>
+/// <param name="SessionKey">
+/// Identifies this specific live session instance. Ephemeral: a new session key is issued
+/// each time the owning process opens a new audio stream, even for the same executable.
+/// </param>
+/// <param name="ExecutablePath">
+/// The owning process's executable path. Durable across process restarts, so this is the key
+/// used for exe-to-group persistence (a session key is not, since sessions are not persistent).
+/// </param>
+/// <param name="DisplayName">Human-readable name for UI display.</param>
+public sealed record AudioSessionInfo(string SessionKey, string ExecutablePath, string DisplayName);
