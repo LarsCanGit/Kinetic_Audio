@@ -164,4 +164,83 @@ public class SessionGroupLinkerTests
 
         Assert.Equal("group-2", manager.GetGroupIdForSession("session-1"));
     }
+
+    [Fact]
+    public void RemoveGroup_ReassignsLiveSession_Immediately()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        provider.RaiseSessionCreated(new AudioSessionInfo("session-1", @"C:\Apps\discord.exe", "Discord"));
+        linker.AssignExecutableToGroup(@"C:\Apps\discord.exe", "group-2");
+
+        var reassigned = linker.RemoveGroup("group-2");
+
+        Assert.Equal(["session-1"], reassigned);
+        Assert.Equal("group-1", manager.GetGroupIdForSession("session-1"));
+    }
+
+    [Fact]
+    public void RemoveGroup_RewritesExecutableMappings_PointingAtDeletedGroup_ToNewDefault()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var store = new FakeExecutableGroupMapStore();
+        var map = new ExecutableGroupMap(store);
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        linker.AssignExecutableToGroup(@"C:\Apps\discord.exe", "group-2");
+
+        linker.RemoveGroup("group-2");
+
+        Assert.Equal("group-1", map.TryGetGroupId(@"C:\Apps\discord.exe"));
+        Assert.Equal("group-1", store.Load()[@"C:\Apps\discord.exe"]);
+    }
+
+    [Fact]
+    public void RemoveGroup_LeavesMappingsForOtherGroups_Untouched()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        linker.AssignExecutableToGroup(@"C:\Apps\spotify.exe", "group-1");
+        linker.AssignExecutableToGroup(@"C:\Apps\discord.exe", "group-2");
+
+        linker.RemoveGroup("group-2");
+
+        Assert.Equal("group-1", map.TryGetGroupId(@"C:\Apps\spotify.exe"));
+    }
+
+    [Fact]
+    public void RemoveGroup_RewrittenMapping_TakesEffect_ForFutureAutoLink()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        linker.AssignExecutableToGroup(@"C:\Apps\discord.exe", "group-2");
+
+        linker.RemoveGroup("group-2");
+        provider.RaiseSessionCreated(new AudioSessionInfo("session-1", @"C:\Apps\discord.exe", "Discord"));
+
+        Assert.Equal("group-1", manager.GetGroupIdForSession("session-1"));
+    }
+
+    [Fact]
+    public void RemoveGroup_OnlyOneGroupRemaining_Throws_AndLeavesMapUntouched()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var store = new FakeExecutableGroupMapStore();
+        var map = new ExecutableGroupMap(store);
+        var manager = new VolumeStateManager(new[] { new MixerGroup("group-1", "Group 1") }, "group-1");
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        linker.AssignExecutableToGroup(@"C:\Apps\discord.exe", "group-1");
+        var saveCallCountBefore = store.SaveCallCount;
+
+        Assert.Throws<InvalidOperationException>(() => linker.RemoveGroup("group-1"));
+
+        Assert.Equal("group-1", map.TryGetGroupId(@"C:\Apps\discord.exe"));
+        Assert.Equal(saveCallCountBefore, store.SaveCallCount);
+    }
 }

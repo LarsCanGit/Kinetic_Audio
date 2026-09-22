@@ -20,6 +20,11 @@ namespace GroupedAudioMixer.Core.Session;
 /// that executable, mirroring how group deletion reassigns live sessions rather than only
 /// affecting future session creations.
 ///
+/// Group deletion: <see cref="RemoveGroup"/> reassigns any live sessions linked to the deleted
+/// group immediately via <see cref="VolumeStateManager.RemoveGroup"/>, then rewrites every
+/// executable mapping that pointed at the deleted group to the new default group id, so the
+/// persisted map never carries a dangling reference to a group that no longer exists.
+///
 /// A removed session is dropped from <see cref="VolumeStateManager"/>'s live tracking only - its
 /// entry in <see cref="ExecutableGroupMap"/> is untouched, so relaunching the executable re-links
 /// it to the same group.
@@ -61,6 +66,27 @@ public sealed class SessionGroupLinker : IDisposable
             if (string.Equals(session.ExecutablePath, executablePath, StringComparison.OrdinalIgnoreCase))
                 _volumeStateManager.AssignSessionToGroup(session.SessionKey, groupId);
         }
+    }
+
+    /// <summary>
+    /// Deletes a group, immediately reassigning its live sessions to the new default group, then
+    /// rewriting any executable mapping that pointed at the deleted group so it points at the new
+    /// default instead. Returns the reassigned session keys so the writer layer can push fresh
+    /// volumes for them. Throws if <paramref name="groupId"/> doesn't exist or is the only group
+    /// remaining, in which case neither the sessions nor the map are touched.
+    /// </summary>
+    public IReadOnlyList<string> RemoveGroup(string groupId)
+    {
+        var reassignedSessions = _volumeStateManager.RemoveGroup(groupId);
+
+        var newDefaultGroupId = _volumeStateManager.DefaultGroupId;
+        foreach (var (executablePath, mappedGroupId) in _executableGroupMap.GetAllMappings())
+        {
+            if (mappedGroupId == groupId)
+                _executableGroupMap.SetMapping(executablePath, newDefaultGroupId);
+        }
+
+        return reassignedSessions;
     }
 
     private void OnSessionCreated(object? sender, AudioSessionEventArgs e) => Link(e.Session);
