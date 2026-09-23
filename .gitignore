@@ -71,3 +71,6 @@ secrets.json
 
 # gstack local session artifacts (not project source)
 .gstack-artifacts-remote.txt
+
+# Local design docs/screenshots, not meant for the public repo
+docs/design/
