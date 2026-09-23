@@ -6,35 +6,105 @@
         xmlns:local="clr-namespace:GroupedAudioMixer"
         mc:Ignorable="d"
         Title="Grouped Audio Mixer"
-        Background="#1A1A1D"
         WindowStartupLocation="CenterScreen"
-        SizeToContent="Manual">
+        SizeToContent="Manual"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        Background="#0A0B0C">
     <Window.Resources>
 
-        <SolidColorBrush x:Key="PanelBrush" Color="#26262B"/>
-        <SolidColorBrush x:Key="StripBrush" Color="#2E2E34"/>
-        <SolidColorBrush x:Key="StripBorderBrush" Color="#3A3A42"/>
-        <SolidColorBrush x:Key="TrackBrush" Color="#0A0A0C"/>
-        <SolidColorBrush x:Key="AmberBrush" Color="#E8A33D"/>
-        <SolidColorBrush x:Key="LightTextBrush" Color="#EDEDF0"/>
-        <SolidColorBrush x:Key="MutedTextBrush" Color="#8A8A93"/>
-        <SolidColorBrush x:Key="ThumbBrush" Color="#3D8EF5"/>
-        <SolidColorBrush x:Key="ThumbStrokeBrush" Color="#1F5FBF"/>
-        <LinearGradientBrush x:Key="ThumbMetalBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="#EDEDF1" Offset="0.0"/>
-            <GradientStop Color="#C2C2C9" Offset="0.18"/>
-            <GradientStop Color="#8C8C94" Offset="0.5"/>
-            <GradientStop Color="#5A5A61" Offset="0.82"/>
-            <GradientStop Color="#37373C" Offset="1.0"/>
+        <!-- Fonts: Oswald (display/labels) and IBM Plex Mono (numeric readouts) per docs/design spec,
+             with system-installed fallbacks since neither ships with Windows by default. -->
+        <FontFamily x:Key="DisplayFont">Oswald, Arial Narrow, sans-serif</FontFamily>
+        <FontFamily x:Key="MonoFont">IBM Plex Mono, Consolas, Courier New, monospace</FontFamily>
+
+        <!-- Canvas background: radial gradient, per spec. -->
+        <RadialGradientBrush x:Key="CanvasBrush" GradientOrigin="0.5,-0.1" Center="0.5,-0.1" RadiusX="0.9" RadiusY="0.9">
+            <GradientStop Color="#1B1D20" Offset="0.0"/>
+            <GradientStop Color="#0A0B0C" Offset="0.55"/>
+            <GradientStop Color="#0A0B0C" Offset="1.0"/>
+        </RadialGradientBrush>
+
+        <LinearGradientBrush x:Key="HeaderBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#2C2F34" Offset="0.0"/>
+            <GradientStop Color="#1C1E21" Offset="1.0"/>
         </LinearGradientBrush>
-        <SolidColorBrush x:Key="ThumbMetalStrokeBrush" Color="#1C1C1F"/>
-        <SolidColorBrush x:Key="ThumbHighlightBrush" Color="#FFFFFF" Opacity="0.4"/>
-        <SolidColorBrush x:Key="MeterGreenBrush" Color="#4CAF6D"/>
-        <SolidColorBrush x:Key="MeterYellowBrush" Color="#E8B23D"/>
-        <SolidColorBrush x:Key="MeterRedDimBrush" Color="#4A2A2A"/>
-        <SolidColorBrush x:Key="MuteIdleBrush" Color="#3A3A42"/>
-        <SolidColorBrush x:Key="MuteActiveBrush" Color="#C0392B"/>
-        <SolidColorBrush x:Key="SignalDotBrush" Color="#4CAF6D"/>
+        <LinearGradientBrush x:Key="RackBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#2A2C30" Offset="0.0"/>
+            <GradientStop Color="#1E2023" Offset="1.0"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="MasterStripBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#36393E" Offset="0.0"/>
+            <GradientStop Color="#25272B" Offset="1.0"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="StripBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#34373C" Offset="0.0"/>
+            <GradientStop Color="#23262A" Offset="1.0"/>
+        </LinearGradientBrush>
+
+        <SolidColorBrush x:Key="StripBorderBrush" Color="#131416"/>
+        <SolidColorBrush x:Key="HeaderBorderBrush" Color="#101113"/>
+        <SolidColorBrush x:Key="RackBorderBrush" Color="#0E0F10"/>
+
+        <SolidColorBrush x:Key="PrimaryTextBrush" Color="#EEF0F2"/>
+        <SolidColorBrush x:Key="MasterAccentBrush" Color="#F4C67C"/>
+        <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6B7076"/>
+        <SolidColorBrush x:Key="TickBrush" Color="#5F6469"/>
+        <SolidColorBrush x:Key="AmberBrush" Color="#D99A3F"/>
+        <SolidColorBrush x:Key="ReadoutTextBrush" Color="#F0C674"/>
+        <SolidColorBrush x:Key="ReadoutBgBrush" Color="#0D0E0F"/>
+
+        <SolidColorBrush x:Key="MeterGreenLitBrush" Color="#4FAE5C"/>
+        <SolidColorBrush x:Key="MeterGreenUnlitBrush" Color="#232620"/>
+        <SolidColorBrush x:Key="MeterYellowLitBrush" Color="#E0B23F"/>
+        <SolidColorBrush x:Key="MeterYellowUnlitBrush" Color="#2B2519"/>
+        <SolidColorBrush x:Key="MeterRedLitBrush" Color="#E2483F"/>
+        <SolidColorBrush x:Key="MeterRedUnlitBrush" Color="#2C1F1E"/>
+
+        <SolidColorBrush x:Key="MuteIdleBrush" Color="#3A3D42"/>
+        <SolidColorBrush x:Key="MuteIdleTextBrush" Color="#C7CBD1"/>
+        <SolidColorBrush x:Key="MuteActiveBrush" Color="#C23B32"/>
+        <SolidColorBrush x:Key="MuteActiveTextBrush" Color="#1A0E0D"/>
+
+        <LinearGradientBrush x:Key="FaderTrackBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#050506" Offset="0.0"/>
+            <GradientStop Color="#1C1D1F" Offset="1.0"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="FaderHousingBrush" Color="#0F1011"/>
+
+        <!-- Brushed-aluminum fader cap: banded top-to-bottom across the thumb's thickness, with a
+             bright reference line at the 50% stop, matching the CSS artifact's rotated linear-gradient. -->
+        <LinearGradientBrush x:Key="ThumbMetalBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#808489" Offset="0.0"/>
+            <GradientStop Color="#C9CCD0" Offset="0.10"/>
+            <GradientStop Color="#F0F1F3" Offset="0.20"/>
+            <GradientStop Color="#9A9EA4" Offset="0.35"/>
+            <GradientStop Color="#6C6F75" Offset="0.48"/>
+            <GradientStop Color="#F7F8F9" Offset="0.50"/>
+            <GradientStop Color="#6C6F75" Offset="0.52"/>
+            <GradientStop Color="#9A9EA4" Offset="0.65"/>
+            <GradientStop Color="#F0F1F3" Offset="0.80"/>
+            <GradientStop Color="#C9CCD0" Offset="0.90"/>
+            <GradientStop Color="#808489" Offset="1.0"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="ThumbStrokeBrush" Color="#202225"/>
+
+        <LinearGradientBrush x:Key="CogBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#EEF0F2" Offset="0.0"/>
+            <GradientStop Color="#C9CCD0" Offset="0.20"/>
+            <GradientStop Color="#9A9EA4" Offset="0.42"/>
+            <GradientStop Color="#797D83" Offset="0.55"/>
+            <GradientStop Color="#A4A8AE" Offset="0.68"/>
+            <GradientStop Color="#D3D6D9" Offset="0.86"/>
+            <GradientStop Color="#EEF0F2" Offset="1.0"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="CogBorderBrush" Color="#17181A"/>
+        <SolidColorBrush x:Key="CogGlyphBrush" Color="#2A2C30"/>
+
+        <RadialGradientBrush x:Key="RivetBrush" GradientOrigin="0.35,0.3" Center="0.35,0.3" RadiusX="0.8" RadiusY="0.8">
+            <GradientStop Color="#9A9EA4" Offset="0.0"/>
+            <GradientStop Color="#1A1B1D" Offset="0.7"/>
+        </RadialGradientBrush>
 
         <!-- Transparent repeat button used for the fader track's paging regions. -->
         <Style x:Key="FaderRepeatButtonStyle" TargetType="RepeatButton">
@@ -50,47 +120,41 @@
             </Setter>
         </Style>
 
-        <!-- Brushed-metal fader cap: a silver-to-charcoal gradient body with a sheen highlight and an amber center groove, like a physical mixing console fader. -->
+        <!-- Fader thumb: a short wide cap (~34 x 14) with the brushed-aluminum banding above. -->
         <Style x:Key="FaderThumbStyle" TargetType="Thumb">
             <Setter Property="OverridesDefaultStyle" Value="True"/>
-            <Setter Property="Height" Value="16"/>
-            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="Width" Value="34"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Grid>
-                            <Rectangle Fill="{StaticResource ThumbMetalBrush}"
-                                       Stroke="{StaticResource ThumbMetalStrokeBrush}"
-                                       StrokeThickness="1"
-                                       RadiusX="3" RadiusY="3"/>
-                            <Rectangle Height="4" Margin="3,2,3,0" VerticalAlignment="Top"
-                                       Fill="{StaticResource ThumbHighlightBrush}"
-                                       RadiusX="2" RadiusY="2"/>
-                            <Rectangle Height="2" Margin="4,0" VerticalAlignment="Center"
-                                       Fill="{StaticResource AmberBrush}"/>
-                        </Grid>
+                        <Rectangle Fill="{StaticResource ThumbMetalBrush}"
+                                   Stroke="{StaticResource ThumbStrokeBrush}"
+                                   StrokeThickness="1"
+                                   RadiusX="2" RadiusY="2"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- Vertical fader: a thin black track with a circular thumb, Maximum at the top. -->
+        <!-- Vertical fader: -60dB to +12dB linear range, min at bottom, max at top, per spec. -->
         <Style x:Key="VerticalFaderStyle" TargetType="Slider">
             <Setter Property="Orientation" Value="Vertical"/>
-            <Setter Property="IsDirectionReversed" Value="True"/>
-            <Setter Property="Minimum" Value="0"/>
-            <Setter Property="Maximum" Value="1"/>
-            <Setter Property="SmallChange" Value="0.01"/>
-            <Setter Property="LargeChange" Value="0.05"/>
+            <Setter Property="Minimum" Value="-60"/>
+            <Setter Property="Maximum" Value="12"/>
+            <Setter Property="SmallChange" Value="0.5"/>
+            <Setter Property="LargeChange" Value="6"/>
+            <Setter Property="IsSnapToTickEnabled" Value="True"/>
+            <Setter Property="TickFrequency" Value="0.5"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Slider">
                         <Grid>
-                            <Border Width="16"
-                                    Background="{StaticResource TrackBrush}"
-                                    CornerRadius="4"
+                            <Border Width="6"
+                                    Background="{StaticResource FaderTrackBrush}"
+                                    CornerRadius="3"
                                     HorizontalAlignment="Center"/>
-                            <Track x:Name="PART_Track">
+                            <Track x:Name="PART_Track" HorizontalAlignment="Center">
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Style="{StaticResource FaderRepeatButtonStyle}" Command="Slider.IncreaseLarge"/>
                                 </Track.DecreaseRepeatButton>
@@ -109,10 +173,10 @@
 
         <!-- Single "Mute" toggle per channel (replaces the Sonar reference's separate M/S buttons). -->
         <Style x:Key="MuteButtonStyle" TargetType="ToggleButton">
-            <Setter Property="Height" Value="30"/>
-            <Setter Property="Foreground" Value="{StaticResource LightTextBrush}"/>
-            <Setter Property="FontFamily" Value="Consolas"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Foreground" Value="{StaticResource MuteIdleTextBrush}"/>
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Background" Value="{StaticResource MuteIdleBrush}"/>
@@ -121,14 +185,15 @@
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="ButtonBorder"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="3"
+                                CornerRadius="4"
                                 BorderBrush="{StaticResource StripBorderBrush}"
                                 BorderThickness="1">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter x:Name="ButtonContent" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource MuteActiveBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource MuteActiveTextBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -136,192 +201,299 @@
             </Setter>
         </Style>
 
-        <!-- Decorative VU-meter segment stack (static, not live; see MainWindow.xaml.cs remarks). -->
+        <!-- VU-meter segment: lit/unlit fill toggled from code-behind based on the fader's percent-of-range. -->
         <Style x:Key="MeterSegmentStyle" TargetType="Rectangle">
-            <Setter Property="Height" Value="10"/>
-            <Setter Property="Width" Value="10"/>
+            <Setter Property="Width" Value="11"/>
             <Setter Property="Margin" Value="0,1"/>
             <Setter Property="RadiusX" Value="1"/>
             <Setter Property="RadiusY" Value="1"/>
         </Style>
 
+        <Style x:Key="TickLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="Foreground" Value="{StaticResource TickBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+
+        <!-- Small corner rivet, reused on the rack panel and each strip. -->
+        <Style x:Key="RivetStyle" TargetType="Ellipse">
+            <Setter Property="Fill" Value="{StaticResource RivetBrush}"/>
+        </Style>
+
+        <!-- Custom title-bar controls, since WindowStyle="None" drops the native ones. -->
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" CornerRadius="16">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource MuteIdleBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" CornerRadius="16">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource MuteActiveBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource MuteActiveTextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <!-- Header -->
-        <Border Grid.Row="0" Background="#202024" Padding="20,14">
+    <Viewbox Stretch="Uniform">
+        <Border Width="1280" Height="800" Background="{StaticResource CanvasBrush}" Padding="50,24">
             <Grid>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="&#9612;&#9611;&#9613;" FontFamily="Consolas" Foreground="{StaticResource AmberBrush}"
-                               FontSize="14" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <StackPanel>
-                        <TextBlock Text="GROUPED AUDIO MIXER" Foreground="{StaticResource LightTextBrush}"
-                                   FontFamily="Consolas" FontSize="16" FontWeight="Bold"/>
-                        <TextBlock Text="3-CHANNEL CONSOLE" Foreground="{StaticResource MutedTextBrush}"
-                                   FontFamily="Consolas" FontSize="10"/>
-                    </StackPanel>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Ellipse Width="8" Height="8" Fill="{StaticResource SignalDotBrush}" Margin="0,0,6,0"/>
-                    <TextBlock Text="SIGNAL ACTIVE" Foreground="{StaticResource MutedTextBrush}"
-                               FontFamily="Consolas" FontSize="10" VerticalAlignment="Center"/>
-                </StackPanel>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="26"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Border Grid.Row="0" Width="1180" Height="64" HorizontalAlignment="Left"
+                        Background="{StaticResource HeaderBrush}" BorderBrush="{StaticResource HeaderBorderBrush}"
+                        BorderThickness="1" CornerRadius="6"
+                        MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                    <Grid Margin="20,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="&#9612;&#9611;&#9613;" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource AmberBrush}"
+                                       FontSize="16" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="GROUPED AUDIO MIXER" Foreground="{StaticResource PrimaryTextBrush}"
+                                       FontFamily="{StaticResource DisplayFont}" FontSize="18" FontWeight="Bold"
+                                       VerticalAlignment="Center" Height="24"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <!-- Settings cog: opens the Settings window. -->
+                            <Grid x:Name="SettingsCog" Width="40" Height="40" Margin="0,0,16,0"
+                                  Background="Transparent" Cursor="Hand"
+                                  PreviewMouseLeftButtonDown="SettingsCog_PreviewMouseLeftButtonDown">
+                                <Ellipse Fill="{StaticResource CogBrush}" Stroke="{StaticResource CogBorderBrush}" StrokeThickness="1.5"/>
+                                <Path HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Fill="{StaticResource CogGlyphBrush}"
+                                      Data="M8,0 L10,0 L10.6,2 L12.4,2.8 L14,1.6 L15.4,3 L14.2,4.6 L15,6.4 L17,7 L17,9 L15,9.6 L14.2,11.4 L15.4,13 L14,14.4 L12.4,13.2 L10.6,14 L10,16 L8,16 L7.4,14 L5.6,13.2 L4,14.4 L2.6,13 L3.8,11.4 L3,9.6 L1,9 L1,7 L3,6.4 L3.8,4.6 L2.6,3 L4,1.6 L5.6,2.8 L7.4,2 Z M9,5.5 A3.5,3.5 0 1 0 9,12.5 A3.5,3.5 0 1 0 9,5.5 Z"
+                                      Width="18" Height="16" Stretch="Uniform"/>
+                            </Grid>
+                            <!-- Custom window controls (WindowStyle="None" supplies no native ones). -->
+                            <Button x:Name="MinimizeButton" Style="{StaticResource TitleBarButtonStyle}"
+                                    Click="MinimizeButton_Click" ToolTip="Minimize">
+                                <Path Data="M0,0 L10,0" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.5" Width="10" Height="10" Stretch="None"
+                                      VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            </Button>
+                            <Button x:Name="CloseButton" Style="{StaticResource CloseButtonStyle}" Margin="4,0,0,0"
+                                    Click="CloseButton_Click" ToolTip="Close">
+                                <Path Data="M0,0 L10,10 M0,10 L10,0" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.5" Width="10" Height="10" Stretch="None"
+                                      VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Rack panel -->
+                <Border Grid.Row="2" Width="1180" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Background="{StaticResource RackBrush}" BorderBrush="{StaticResource RackBorderBrush}"
+                        BorderThickness="1" CornerRadius="10" Padding="32,40">
+                    <Grid HorizontalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="230"/>
+                            <ColumnDefinition Width="36"/>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="36"/>
+                            <ColumnDefinition Width="200"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Master strip -->
+                        <Border Grid.Column="0" Background="{StaticResource MasterStripBrush}"
+                                BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="26,22">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="360"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                                    <TextBlock Text="MASTER" Foreground="{StaticResource MasterAccentBrush}"
+                                               FontFamily="{StaticResource DisplayFont}" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="MAIN OUT" Foreground="{StaticResource SecondaryTextBrush}"
+                                               FontFamily="{StaticResource DisplayFont}" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1" HorizontalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="58"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Grid.Column="0" x:Name="MasterTicks" Height="360" Margin="0,0,6,0"/>
+                                    <Grid x:Name="MasterMeter" Grid.Column="1" Width="11" Height="360" Margin="0,0,8,0"/>
+                                    <Border Grid.Column="2" Width="58" Height="360" Background="{StaticResource FaderHousingBrush}" CornerRadius="4">
+                                        <Slider x:Name="MasterFader" Height="352" Width="34"
+                                                Style="{StaticResource VerticalFaderStyle}"
+                                                ValueChanged="MasterFader_ValueChanged"/>
+                                    </Border>
+                                </Grid>
+
+                                <Border Grid.Row="2" Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
+                                        BorderThickness="1" CornerRadius="3" MinWidth="66" Margin="0,16,0,12" Padding="8,4">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock x:Name="MasterDbText" Text="0.0" Foreground="{StaticResource ReadoutTextBrush}"
+                                                   FontFamily="{StaticResource MonoFont}" FontSize="14" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="dB" Foreground="{StaticResource ReadoutTextBrush}"
+                                                   FontFamily="{StaticResource MonoFont}" FontSize="10" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <ToggleButton x:Name="MasterMuteButton" Grid.Row="3" Content="MUTE" Width="64"
+                                              Style="{StaticResource MuteButtonStyle}"
+                                              Click="MasterMuteButton_Click"/>
+
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,8,0,0"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Group 1 strip -->
+                        <Border Grid.Column="2" Background="{StaticResource StripBrush}"
+                                BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="26,22">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="360"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                                    <TextBlock Text="GROUP 1" Foreground="{StaticResource PrimaryTextBrush}"
+                                               FontFamily="{StaticResource DisplayFont}" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="BUS" Foreground="{StaticResource SecondaryTextBrush}"
+                                               FontFamily="{StaticResource DisplayFont}" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1" HorizontalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="22"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="56"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Grid.Column="0" x:Name="Group1Ticks" Height="360" Margin="0,0,6,0"/>
+                                    <Grid x:Name="Group1Meter" Grid.Column="1" Width="11" Height="360" Margin="0,0,8,0"/>
+                                    <Border Grid.Column="2" Width="56" Height="360" Background="{StaticResource FaderHousingBrush}" CornerRadius="4">
+                                        <Slider x:Name="Group1Fader" Height="352" Width="34"
+                                                Style="{StaticResource VerticalFaderStyle}"
+                                                ValueChanged="Group1Fader_ValueChanged"/>
+                                    </Border>
+                                </Grid>
+
+                                <Border Grid.Row="2" Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
+                                        BorderThickness="1" CornerRadius="3" MinWidth="60" Margin="0,16,0,12" Padding="8,4">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock x:Name="Group1DbText" Text="-3.0" Foreground="{StaticResource ReadoutTextBrush}"
+                                                   FontFamily="{StaticResource MonoFont}" FontSize="14" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="dB" Foreground="{StaticResource ReadoutTextBrush}"
+                                                   FontFamily="{StaticResource MonoFont}" FontSize="10" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <ToggleButton x:Name="Group1MuteButton" Grid.Row="3" Content="MUTE" Width="96"
+                                              Style="{StaticResource MuteButtonStyle}"
+                                              Click="Group1MuteButton_Click"/>
+
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,8,0,0"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Mic strip -->
+                        <Border Grid.Column="4" Background="{StaticResource StripBrush}"
+                                BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="26,22">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="360"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                                    <TextBlock Text="MIC" Foreground="{StaticResource PrimaryTextBrush}"
+                                               FontFamily="{StaticResource DisplayFont}" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="INPUT" Foreground="{StaticResource SecondaryTextBrush}"
+                                               FontFamily="{StaticResource DisplayFont}" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1" HorizontalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="22"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="56"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Grid.Column="0" x:Name="MicTicks" Height="360" Margin="0,0,6,0"/>
+                                    <Grid x:Name="MicMeter" Grid.Column="1" Width="11" Height="360" Margin="0,0,8,0"/>
+                                    <Border Grid.Column="2" Width="56" Height="360" Background="{StaticResource FaderHousingBrush}" CornerRadius="4">
+                                        <Slider x:Name="MicFader" Height="352" Width="34"
+                                                Style="{StaticResource VerticalFaderStyle}"
+                                                ValueChanged="MicFader_ValueChanged"/>
+                                    </Border>
+                                </Grid>
+
+                                <Border Grid.Row="2" Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
+                                        BorderThickness="1" CornerRadius="3" MinWidth="60" Margin="0,16,0,12" Padding="8,4">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock x:Name="MicDbText" Text="-6.0" Foreground="{StaticResource ReadoutTextBrush}"
+                                                   FontFamily="{StaticResource MonoFont}" FontSize="14" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="dB" Foreground="{StaticResource ReadoutTextBrush}"
+                                                   FontFamily="{StaticResource MonoFont}" FontSize="10" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <ToggleButton x:Name="MicMuteButton" Grid.Row="3" Content="MUTE" Width="96"
+                                              Style="{StaticResource MuteButtonStyle}"
+                                              Click="MicMuteButton_Click"/>
+
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,8,0,0"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
+                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
             </Grid>
         </Border>
-
-        <!-- Mixer strips -->
-        <Border Grid.Row="1" Background="{StaticResource PanelBrush}" Padding="24">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Master strip -->
-                <Border Grid.Column="0" Margin="8,0" Background="{StaticResource StripBrush}"
-                        BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                            <TextBlock Text="MASTER" Foreground="{StaticResource AmberBrush}"
-                                       FontFamily="Consolas" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
-                            <TextBlock Text="MAIN OUT" Foreground="{StaticResource MutedTextBrush}"
-                                       FontFamily="Consolas" FontSize="10" HorizontalAlignment="Center"/>
-                        </StackPanel>
-
-                        <Grid Grid.Row="1" HorizontalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel x:Name="MasterMeter" Grid.Column="0" VerticalAlignment="Stretch"
-                                        Orientation="Vertical" Margin="0,0,10,0"/>
-                            <Slider x:Name="MasterFader" Grid.Column="1" Height="300" Width="30"
-                                    Style="{StaticResource VerticalFaderStyle}"
-                                    ValueChanged="MasterFader_ValueChanged"/>
-                        </Grid>
-
-                        <Border Grid.Row="2" Background="{StaticResource TrackBrush}" CornerRadius="3"
-                                Margin="0,16,0,12" Padding="8,4">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock x:Name="MasterDbText" Text="0.0" Foreground="{StaticResource AmberBrush}"
-                                           FontFamily="Consolas" FontSize="14" HorizontalAlignment="Center"/>
-                                <TextBlock Text="dB" Foreground="{StaticResource AmberBrush}"
-                                           FontFamily="Consolas" FontSize="10" HorizontalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-
-                        <ToggleButton x:Name="MasterMuteButton" Grid.Row="3" Content="MUTE"
-                                      Style="{StaticResource MuteButtonStyle}"
-                                      Click="MasterMuteButton_Click"/>
-                    </Grid>
-                </Border>
-
-                <!-- Group 1 strip -->
-                <Border Grid.Column="1" Margin="8,0" Background="{StaticResource StripBrush}"
-                        BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                            <TextBlock Text="GROUP 1" Foreground="{StaticResource LightTextBrush}"
-                                       FontFamily="Consolas" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
-                            <TextBlock Text="BUS" Foreground="{StaticResource MutedTextBrush}"
-                                       FontFamily="Consolas" FontSize="10" HorizontalAlignment="Center"/>
-                        </StackPanel>
-
-                        <Grid Grid.Row="1" HorizontalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel x:Name="Group1Meter" Grid.Column="0" VerticalAlignment="Stretch"
-                                        Orientation="Vertical" Margin="0,0,10,0"/>
-                            <Slider x:Name="Group1Fader" Grid.Column="1" Height="300" Width="30"
-                                    Style="{StaticResource VerticalFaderStyle}"
-                                    ValueChanged="Group1Fader_ValueChanged"/>
-                        </Grid>
-
-                        <Border Grid.Row="2" Background="{StaticResource TrackBrush}" CornerRadius="3"
-                                Margin="0,16,0,12" Padding="8,4">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock x:Name="Group1DbText" Text="-3.0" Foreground="{StaticResource LightTextBrush}"
-                                           FontFamily="Consolas" FontSize="14" HorizontalAlignment="Center"/>
-                                <TextBlock Text="dB" Foreground="{StaticResource LightTextBrush}"
-                                           FontFamily="Consolas" FontSize="10" HorizontalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-
-                        <ToggleButton x:Name="Group1MuteButton" Grid.Row="3" Content="MUTE"
-                                      Style="{StaticResource MuteButtonStyle}"
-                                      Click="Group1MuteButton_Click"/>
-                    </Grid>
-                </Border>
-
-                <!-- Mic strip -->
-                <Border Grid.Column="2" Margin="8,0" Background="{StaticResource StripBrush}"
-                        BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                            <TextBlock Text="MIC" Foreground="{StaticResource LightTextBrush}"
-                                       FontFamily="Consolas" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
-                            <TextBlock Text="INPUT" Foreground="{StaticResource MutedTextBrush}"
-                                       FontFamily="Consolas" FontSize="10" HorizontalAlignment="Center"/>
-                        </StackPanel>
-
-                        <Grid Grid.Row="1" HorizontalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel x:Name="MicMeter" Grid.Column="0" VerticalAlignment="Stretch"
-                                        Orientation="Vertical" Margin="0,0,10,0"/>
-                            <Slider x:Name="MicFader" Grid.Column="1" Height="300" Width="30"
-                                    Style="{StaticResource VerticalFaderStyle}"
-                                    ValueChanged="MicFader_ValueChanged"/>
-                        </Grid>
-
-                        <Border Grid.Row="2" Background="{StaticResource TrackBrush}" CornerRadius="3"
-                                Margin="0,16,0,12" Padding="8,4">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock x:Name="MicDbText" Text="-6.0" Foreground="{StaticResource LightTextBrush}"
-                                           FontFamily="Consolas" FontSize="14" HorizontalAlignment="Center"/>
-                                <TextBlock Text="dB" Foreground="{StaticResource LightTextBrush}"
-                                           FontFamily="Consolas" FontSize="10" HorizontalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-
-                        <ToggleButton x:Name="MicMuteButton" Grid.Row="3" Content="MUTE"
-                                      Style="{StaticResource MuteButtonStyle}"
-                                      Click="MicMuteButton_Click"/>
-                    </Grid>
-                </Border>
-
-            </Grid>
-        </Border>
-    </Grid>
+    </Viewbox>
 </Window>

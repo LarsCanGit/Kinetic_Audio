@@ -99,6 +99,15 @@ public sealed class CoreAudioDeviceProvider : IAudioDeviceProvider
         return new AudioDeviceInfo(id, displayName, kind);
     }
 
+    // PKEY_Device_FriendlyName {a45c254e-df1c-4efd-8020-67d146a850e0}, pid 14.
+    private static readonly PROPERTYKEY PKeyDeviceFriendlyName = new()
+    {
+        fmtid = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"),
+        pid = 14,
+    };
+
+    private const ushort VT_LPWSTR = 31;
+
     /// <summary>
     /// Best-effort friendly-name lookup via the device's property store. Falls back to null (caller
     /// falls back further to the device id) rather than throwing, since a missing friendly name
@@ -112,8 +121,33 @@ public sealed class CoreAudioDeviceProvider : IAudioDeviceProvider
             if (propertyStorePtr == IntPtr.Zero)
                 return null;
 
-            Marshal.Release(propertyStorePtr);
-            return null;
+            try
+            {
+                var propertyStore = (IPropertyStore)Marshal.GetObjectForIUnknown(propertyStorePtr);
+                try
+                {
+                    var key = PKeyDeviceFriendlyName;
+                    ThrowIfFailed(propertyStore.GetValue(ref key, out var value));
+                    try
+                    {
+                        return value.vt == VT_LPWSTR && value.pointerValue != IntPtr.Zero
+                            ? Marshal.PtrToStringUni(value.pointerValue)
+                            : null;
+                    }
+                    finally
+                    {
+                        NativeMethods.PropVariantClear(ref value);
+                    }
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(propertyStore);
+                }
+            }
+            finally
+            {
+                Marshal.Release(propertyStorePtr);
+            }
         }
         catch (COMException)
         {

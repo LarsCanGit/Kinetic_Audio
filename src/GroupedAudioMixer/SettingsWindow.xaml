@@ -1,0 +1,300 @@
+<Window x:Class="GroupedAudioMixer.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Width="640" Height="560"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#0A0B0C">
+    <Window.Resources>
+        <SolidColorBrush x:Key="PanelBrush" Color="#1A1C1E"/>
+        <SolidColorBrush x:Key="HeaderBrush" Color="#232527"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#E8E8E8"/>
+        <SolidColorBrush x:Key="SubTextBrush" Color="#9AA0A6"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#E0A93E"/>
+        <SolidColorBrush x:Key="BorderBrush2" Color="#33363A"/>
+
+        <Style x:Key="ThemedScrollBarThumbStyle" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="ThumbBorder" Background="{StaticResource BorderBrush2}" CornerRadius="3"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ThumbBorder" Property="Background" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="ThumbBorder" Property="Background" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="MinWidth" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True" IsEnabled="{TemplateBinding IsEnabled}">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ThemedScrollBarThumbStyle}" Width="6" MinHeight="24"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Ellipse x:Name="Bg" Fill="#33363A"/>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Fill" Value="#E05A4E"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DoneButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="#1A1C1E"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="28,10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="4"
+                                BorderBrush="#F0BD5A" BorderThickness="0">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#F0BD5A"/>
+                                <Setter TargetName="Bg" Property="BorderThickness" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#C6941F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0" IsItemsHost="True" Background="Transparent"/>
+                            <ContentPresenter Grid.Row="1" ContentSource="SelectedContent"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource SubTextBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Grid Background="Transparent">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="3"/>
+                            </Grid.RowDefinitions>
+                            <ContentPresenter x:Name="Content" Grid.Row="0" ContentSource="Header"
+                                               Margin="{TemplateBinding Padding}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Border x:Name="Underline" Grid.Row="1" Background="Transparent"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Underline" Property="Background" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Margin" Value="0,6"/>
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource HeaderBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+
+        <Style x:Key="DeviceTileStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource HeaderBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="0,2"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="56"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource HeaderBrush}" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+            <Grid>
+                <TextBlock Text="SETTINGS" VerticalAlignment="Center" Margin="16,0" FontWeight="Bold" FontSize="13"/>
+                <Button x:Name="CloseButton" Style="{StaticResource TitleBarButtonStyle}"
+                        HorizontalAlignment="Right" Margin="0,0,8,0" Click="CloseButton_Click" ToolTip="Close">
+                    <TextBlock Text="✕" FontSize="12" Foreground="{StaticResource TextBrush}"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <TabControl Grid.Row="1" Background="#0A0B0C" BorderThickness="0" Margin="12">
+            <TabItem Header="Devices">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0">
+                            <TextBlock Text="PLAYBACK" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Drag to reorder. Devices above the line are cycled by the hotkey." Foreground="{StaticResource SubTextBrush}" FontSize="11" TextWrapping="Wrap" Height="32" Margin="0,0,0,8"/>
+                        </StackPanel>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="PlaybackList"/>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0">
+                            <TextBlock Text="RECORDING" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Drag to reorder. Recording devices are not cycled by the hotkey." Foreground="{StaticResource SubTextBrush}" FontSize="11" TextWrapping="Wrap" Height="32" Margin="0,0,0,8"/>
+                        </StackPanel>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="RecordingList"/>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Hotkey &amp; General">
+                <StackPanel Margin="8">
+                    <TextBlock Text="CYCLE-SWITCH HOTKEY" FontWeight="Bold" Margin="0,0,0,4"/>
+                    <TextBlock Text="Click the box, then press the new key combination." Foreground="{StaticResource SubTextBrush}" FontSize="11" Margin="0,0,0,6"/>
+                    <Border Style="{StaticResource DeviceTileStyle}" Width="240" HorizontalAlignment="Left">
+                        <TextBox x:Name="HotkeyBox" IsReadOnly="True" Background="Transparent" BorderThickness="0"
+                                 Foreground="{StaticResource TextBrush}" Focusable="True" Cursor="Hand"
+                                 PreviewKeyDown="HotkeyBox_PreviewKeyDown" GotFocus="HotkeyBox_GotFocus"/>
+                    </Border>
+                    <TextBlock x:Name="HotkeyErrorText" Foreground="#E05A4E" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+
+                    <TextBlock Text="GENERAL" FontWeight="Bold" Margin="0,20,0,4"/>
+                    <CheckBox x:Name="RunAtStartupCheck" Content="Run at Windows startup" Checked="RunAtStartupCheck_Changed" Unchecked="RunAtStartupCheck_Changed"/>
+                    <CheckBox x:Name="MinimizeToTrayCheck" Content="Minimize to tray" Checked="MinimizeToTrayCheck_Changed" Unchecked="MinimizeToTrayCheck_Changed"/>
+                    <CheckBox x:Name="NotifyOnSwitchCheck" Content="Show a notification on device switch" Checked="NotifyOnSwitchCheck_Changed" Unchecked="NotifyOnSwitchCheck_Changed"/>
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="Groups">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="GROUPS" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <ListBox x:Name="GroupsListBox" Background="Transparent" BorderThickness="0"
+                                 SelectionChanged="GroupsListBox_SelectionChanged" Height="280"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Add" Click="AddGroup_Click"/>
+                            <Button Content="Rename" Click="RenameGroup_Click"/>
+                            <Button Content="Remove" Click="RemoveGroup_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="MAPPED EXECUTABLES" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <ListBox x:Name="MappingsListBox" Background="Transparent" BorderThickness="0" Height="280"/>
+                        <Button Content="Remove Mapping" Click="RemoveMapping_Click" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="2" Background="{StaticResource HeaderBrush}">
+            <Button x:Name="DoneButton" Style="{StaticResource DoneButtonStyle}" Content="Done"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,16,0" Click="CloseButton_Click"/>
+        </Border>
+    </Grid>
+</Window>

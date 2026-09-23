@@ -6,6 +6,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWindowsForms adds implicit global usings for System.Windows.Forms and System.Drawing,
+         which collide with WPF's System.Windows/System.Windows.Media/System.Windows.Shapes types
+         (Application, KeyEventArgs, Panel, Timer, Brush, Color, Rectangle, etc.) across the whole
+         project. Remove both; reference Forms/Drawing types with explicit namespaces instead. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
 </Project>

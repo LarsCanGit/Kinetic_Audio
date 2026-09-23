@@ -52,6 +52,40 @@ internal interface IMMDeviceEnumerator
     int UnregisterEndpointNotificationCallback(IntPtr client);
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal struct PROPERTYKEY
+{
+    public Guid fmtid;
+    public uint pid;
+}
+
+/// <summary>
+/// Trimmed PROPVARIANT: only <c>vt</c> and the pointer-sized union slot are read, which is all
+/// <c>PKEY_Device_FriendlyName</c> (VT_LPWSTR) needs; other variant types are not interpreted.
+/// </summary>
+[StructLayout(LayoutKind.Explicit)]
+internal struct PROPVARIANT
+{
+    [FieldOffset(0)] public ushort vt;
+    [FieldOffset(8)] public IntPtr pointerValue;
+}
+
+[ComImport]
+[Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IPropertyStore
+{
+    int GetCount(out uint count);
+
+    int GetAt(uint index, out PROPERTYKEY key);
+
+    int GetValue([In] ref PROPERTYKEY key, out PROPVARIANT value);
+
+    int SetValue([In] ref PROPERTYKEY key, [In] ref PROPVARIANT value);
+
+    int Commit();
+}
+
 [ComImport]
 [Guid("D666063F-1587-4E43-81F1-B948E807363F")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -191,6 +225,7 @@ internal interface ISimpleAudioVolume
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IAudioSessionNotification
 {
+    [PreserveSig]
     int OnSessionCreated(IAudioSessionControl newSession);
 }
 
@@ -199,18 +234,25 @@ internal interface IAudioSessionNotification
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IAudioSessionEvents
 {
+    [PreserveSig]
     int OnDisplayNameChanged([MarshalAs(UnmanagedType.LPWStr)] string displayName, [In] ref Guid eventContext);
 
+    [PreserveSig]
     int OnIconPathChanged([MarshalAs(UnmanagedType.LPWStr)] string iconPath, [In] ref Guid eventContext);
 
+    [PreserveSig]
     int OnSimpleVolumeChanged(float volume, [MarshalAs(UnmanagedType.Bool)] bool mute, [In] ref Guid eventContext);
 
+    [PreserveSig]
     int OnChannelVolumeChanged(uint channelCount, IntPtr newChannelVolumeArray, uint changedChannel, [In] ref Guid eventContext);
 
+    [PreserveSig]
     int OnGroupingParamChanged([In] ref Guid groupingParam, [In] ref Guid eventContext);
 
+    [PreserveSig]
     int OnStateChanged(AudioSessionState state);
 
+    [PreserveSig]
     int OnSessionDisconnected(int disconnectReason);
 }
 
@@ -255,4 +297,10 @@ internal interface IPolicyConfig
 [Guid("870AF99C-171D-4F9E-AF0D-E63DF40C2BC9")]
 internal class PolicyConfigClientComObject
 {
+}
+
+internal static class NativeMethods
+{
+    [DllImport("ole32.dll")]
+    public static extern int PropVariantClear(ref PROPVARIANT pvar);
 }
