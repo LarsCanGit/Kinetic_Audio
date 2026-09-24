@@ -29,6 +29,8 @@ public partial class MainWindow : Window
     private bool _isInitializing = true;
     private bool _isSyncingFromState;
     private Forms.NotifyIcon? _trayIcon;
+    private System.Drawing.Icon? _trayIconNormal;
+    private System.Drawing.Icon? _trayIconMuted;
 
     public ObservableCollection<GroupStripViewModel> Strips { get; } = new();
 
@@ -71,9 +73,12 @@ public partial class MainWindow : Window
         {
             SyncFadersFromState();
             RebuildAllSessionCards();
+            UpdateTrayIcon();
         });
         _sessionProvider.SessionRemoved += (_, _) => Dispatcher.BeginInvoke(RebuildAllSessionCards);
         RebuildAllSessionCards();
+
+        CreateTrayIcon();
 
         _isInitializing = false;
     }
@@ -115,29 +120,45 @@ public partial class MainWindow : Window
         settingsWindow.ShowDialog();
     }
 
+    private void CreateTrayIcon()
+    {
+        _trayIcon = new Forms.NotifyIcon
+        {
+            Icon = GetTrayIcon(_volumeState.Main.IsMuted),
+            Text = "Kinetic Audio",
+            Visible = true,
+        };
+        _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+
+        var contextMenu = new Forms.ContextMenuStrip();
+        contextMenu.Items.Add("Open", null, (_, _) => RestoreFromTray());
+        contextMenu.Items.Add("Exit", null, (_, _) => System.Windows.Application.Current.Shutdown());
+        _trayIcon.ContextMenuStrip = contextMenu;
+    }
+
     private void HideToTray()
     {
         Hide();
+    }
 
-        if (_trayIcon == null)
-        {
-            _trayIcon = new Forms.NotifyIcon
-            {
-                Icon = System.Drawing.SystemIcons.Application,
-                Text = "Kinetic Audio",
-                Visible = true,
-            };
-            _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+    private void UpdateTrayIcon()
+    {
+        if (_trayIcon != null)
+            _trayIcon.Icon = GetTrayIcon(_volumeState.Main.IsMuted);
+    }
 
-            var contextMenu = new Forms.ContextMenuStrip();
-            contextMenu.Items.Add("Open", null, (_, _) => RestoreFromTray());
-            contextMenu.Items.Add("Exit", null, (_, _) => System.Windows.Application.Current.Shutdown());
-            _trayIcon.ContextMenuStrip = contextMenu;
-        }
-        else
-        {
-            _trayIcon.Visible = true;
-        }
+    private System.Drawing.Icon GetTrayIcon(bool isMuted)
+    {
+        if (isMuted)
+            return _trayIconMuted ??= LoadIconResource("Assets/KineticAudio-muted.ico");
+        return _trayIconNormal ??= LoadIconResource("Assets/KineticAudio.ico");
+    }
+
+    private static System.Drawing.Icon LoadIconResource(string relativePath)
+    {
+        var uri = new Uri($"pack://application:,,,/{relativePath}", UriKind.Absolute);
+        var stream = System.Windows.Application.GetResourceStream(uri)!.Stream;
+        return new System.Drawing.Icon(stream);
     }
 
     private void RestoreFromTray()
@@ -145,14 +166,13 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
         Activate();
-
-        if (_trayIcon != null)
-            _trayIcon.Visible = false;
     }
 
     protected override void OnClosed(EventArgs e)
     {
         _trayIcon?.Dispose();
+        _trayIconNormal?.Dispose();
+        _trayIconMuted?.Dispose();
         base.OnClosed(e);
     }
 
