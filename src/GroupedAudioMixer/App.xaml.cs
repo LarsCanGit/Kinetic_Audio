@@ -18,7 +18,7 @@ public partial class App : Application
 {
     private CoreAudioDeviceProvider? _deviceProvider;
     private GlobalHotkeyListener? _hotkeyListener;
-    private IDisposable? _hotkeyRegistration;
+    private readonly Dictionary<HotkeyAction, IDisposable> _hotkeyRegistrations = new();
     private DeviceSwitcher? _playbackDeviceSwitcher;
     private DeviceSwitchOsd? _deviceSwitchOsd;
 
@@ -60,17 +60,19 @@ public partial class App : Application
         var initialSwitchList = _settings.PlaybackDeviceOrder.Take(_settings.PlaybackSwitchCount).ToList();
         _playbackDeviceSwitcher = new DeviceSwitcher(_deviceProvider, AudioDeviceKind.Playback, initialSwitchList);
 
-        _hotkeyListener = new GlobalHotkeyListener();
-        TryRegisterHotkey(_settings.CycleHotkeyModifiers, _settings.CycleHotkeyKey);
-
         if (_settings.Groups.Count == 0)
             _settings.Groups.Add(new GroupDefinition(WellKnownGroupIds.Group1Id, "Group 1"));
 
         var defaultGroupId = DefaultGroupResolver.ResolveDefaultGroupId(_settings.Groups);
 
+        // The Mic strip drives recording sessions: Main Out (the playback master) doesn't scale
+        // or mute it, and capture sessions always link to it.
+        var micGroupId = _settings.Groups.Any(g => g.Id == WellKnownGroupIds.MicId) ? WellKnownGroupIds.MicId : null;
+
         _volumeState = new VolumeStateManager(
             _settings.Groups.Select(g => new MixerGroup(g.Id, g.Name)),
-            defaultGroupId);
+            defaultGroupId,
+            micGroupId is null ? null : [micGroupId]);
 
         _executableGroupMap = new ExecutableGroupMap(new JsonExecutableGroupMapStore());
 
@@ -78,10 +80,19 @@ public partial class App : Application
         // Fallback notices can fire from the constructor (sessions already running) before the
         // window exists, and later on Core Audio threads; BeginInvoke covers both.
         _sessionGroupLinker = new SessionGroupLinker(_sessionProvider, _executableGroupMap, _volumeState,
-            (_, e) => Dispatcher.BeginInvoke(() => (MainWindow as KineticAudio.MainWindow)?.ShowMappingFallback(e)));
+            (_, e) => Dispatcher.BeginInvoke(() => (MainWindow as KineticAudio.MainWindow)?.ShowMappingFallback(e)),
+            captureGroupId: micGroupId);
         _sessionVolumeWriter = new SessionVolumeWriter(_sessionProvider, _volumeState);
         _volumeDriftReconciler = new VolumeDriftReconciler(_sessionProvider, _volumeState);
         _volumeDriftReconciler.Start();
+
+        // After _volumeState exists: the Main mute hotkey acts on it.
+        _hotkeyListener = new GlobalHotkeyListener();
+        foreach (var action in Enum.GetValues<HotkeyAction>())
+        {
+            var (modifiers, key) = GetHotkey(action);
+            TryRegisterHotkey(action, modifiers, key);
+        }
 
         if (_settings.RunAtStartup)
             StartupRegistration.SetEnabled(true, Environment.ProcessPath ?? string.Empty);
@@ -91,42 +102,92 @@ public partial class App : Application
         mainWindow.Show();
     }
 
-    /// <summary>Disposes the current hotkey registration and registers the new binding. Returns
-    /// null on success, or an error message if the new binding is already claimed (the old
-    /// binding is re-registered in that case so the hotkey isn't left silently unbound).</summary>
-    public string? TryRebindCycleHotkey(ModifierKeys modifiers, Key key)
+    public (ModifierKeys Modifiers, Key Key) GetHotkey(HotkeyAction action) => action switch
     {
-        var previousModifiers = _settings!.CycleHotkeyModifiers;
-        var previousKey = _settings.CycleHotkeyKey;
+        HotkeyAction.CycleDevice => (_settings!.CycleHotkeyModifiers, _settings.CycleHotkeyKey),
+        HotkeyAction.MuteMain => (_settings!.MuteMainHotkeyModifiers, _settings.MuteMainHotkeyKey),
+        _ => throw new ArgumentOutOfRangeException(nameof(action)),
+    };
 
-        _hotkeyRegistration?.Dispose();
-        _hotkeyRegistration = null;
-
-        if (TryRegisterHotkey(modifiers, key))
+    private void SetHotkey(HotkeyAction action, ModifierKeys modifiers, Key key)
+    {
+        switch (action)
         {
-            _settings.CycleHotkeyModifiers = modifiers;
-            _settings.CycleHotkeyKey = key;
-            _settingsStore!.Save(_settings);
+            case HotkeyAction.CycleDevice:
+                _settings!.CycleHotkeyModifiers = modifiers;
+                _settings.CycleHotkeyKey = key;
+                break;
+            case HotkeyAction.MuteMain:
+                _settings!.MuteMainHotkeyModifiers = modifiers;
+                _settings.MuteMainHotkeyKey = key;
+                break;
+        }
+    }
+
+    /// <summary>Disposes the action's current hotkey registration and registers the new binding.
+    /// Returns null on success, or an error message if the new binding is taken by the other
+    /// action or by another application (the old binding is re-registered in that case so the
+    /// hotkey isn't left silently unbound).</summary>
+    public string? TryRebindHotkey(HotkeyAction action, ModifierKeys modifiers, Key key)
+    {
+        foreach (var other in Enum.GetValues<HotkeyAction>())
+        {
+            if (other != action && GetHotkey(other) == (modifiers, key))
+                return $"{modifiers}+{key} is already used by the {DescribeHotkey(other)} hotkey.";
+        }
+
+        var (previousModifiers, previousKey) = GetHotkey(action);
+
+        if (_hotkeyRegistrations.Remove(action, out var registration))
+            registration.Dispose();
+
+        if (TryRegisterHotkey(action, modifiers, key))
+        {
+            SetHotkey(action, modifiers, key);
+            _settingsStore!.Save(_settings!);
             return null;
         }
 
-        TryRegisterHotkey(previousModifiers, previousKey);
+        TryRegisterHotkey(action, previousModifiers, previousKey);
         return $"Failed to register {modifiers}+{key}. It may already be in use by another application.";
     }
 
-    private bool TryRegisterHotkey(ModifierKeys modifiers, Key key)
+    private static string DescribeHotkey(HotkeyAction action) => action switch
     {
+        HotkeyAction.CycleDevice => "cycle-switch",
+        HotkeyAction.MuteMain => "Main mute",
+        _ => action.ToString(),
+    };
+
+    private bool TryRegisterHotkey(HotkeyAction action, ModifierKeys modifiers, Key key)
+    {
+        Action callback = action switch
+        {
+            HotkeyAction.CycleDevice => OnCycleHotkeyPressed,
+            HotkeyAction.MuteMain => OnMuteMainHotkeyPressed,
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+
         try
         {
-            _hotkeyRegistration = _hotkeyListener!.Register(modifiers, key, OnCycleHotkeyPressed);
+            _hotkeyRegistrations[action] = _hotkeyListener!.Register(modifiers, key, callback);
             return true;
         }
         catch (InvalidOperationException)
         {
-            // Hotkey already claimed by another application; the app still runs, just without the
-            // global cycle-switch shortcut until the user picks a free one in Settings.
+            // Hotkey already claimed by another application; the app still runs, just without
+            // this global shortcut until the user picks a free one in Settings.
             return false;
         }
+    }
+
+    /// <summary>Runs on the dispatcher thread (see <see cref="GlobalHotkeyListener.Register"/>).</summary>
+    private void OnMuteMainHotkeyPressed()
+    {
+        _volumeState!.ToggleMainMute();
+        // EffectiveVolumeChanged doesn't fire when no sessions are live, so refresh the Main
+        // strip's mute button directly.
+        (MainWindow as KineticAudio.MainWindow)?.SyncMuteStatesFromState();
     }
 
     private void OnCycleHotkeyPressed()
@@ -162,10 +223,16 @@ public partial class App : Application
         _sessionVolumeWriter?.Dispose();
         _sessionGroupLinker?.Dispose();
         _sessionProvider?.Dispose();
-        _hotkeyRegistration?.Dispose();
+        foreach (var registration in _hotkeyRegistrations.Values)
+            registration.Dispose();
         _hotkeyListener?.Dispose();
         _deviceProvider?.Dispose();
         base.OnExit(e);
     }
 }
 
+public enum HotkeyAction
+{
+    CycleDevice,
+    MuteMain,
+}

@@ -2,7 +2,7 @@ using System.Windows.Input;
 
 namespace KineticAudio.Core.Settings;
 
-/// <summary>Persisted user configuration: device order/hotkey-swap membership, cycle hotkey,
+/// <summary>Persisted user configuration: device order/hotkey-swap membership, hotkeys,
 /// general options, and mixer groups.</summary>
 public sealed class AppSettings
 {
@@ -12,6 +12,9 @@ public sealed class AppSettings
 
     public ModifierKeys CycleHotkeyModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Alt;
     public Key CycleHotkeyKey { get; set; } = Key.F11;
+
+    public ModifierKeys MuteMainHotkeyModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Alt;
+    public Key MuteMainHotkeyKey { get; set; } = Key.F10;
 
     public bool RunAtStartup { get; set; }
     public bool MinimizeToTray { get; set; }

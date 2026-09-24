@@ -301,6 +301,16 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Updates every strip's mute button from state, for mutes that didn't come from a button
+    /// click (the Main mute hotkey). Setting IsMuted doesn't raise Click, so this never re-mutes.
+    /// </summary>
+    public void SyncMuteStatesFromState()
+    {
+        foreach (var strip in Strips)
+            strip.IsMuted = strip.IsMasterStrip ? _volumeState.Main.IsMuted : _volumeState.GetGroup(strip.GroupId!).IsMuted;
+    }
+
+    /// <summary>
     /// Moves group faders to match state changed from outside the UI (external volume drift
     /// reconciled by <see cref="VolumeDriftReconciler"/>). Faders already matching state are left
     /// alone so a sync never nudges a fader the user just set.
@@ -342,6 +352,11 @@ public partial class MainWindow : Window
             var seenExecutables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var session in sessions)
             {
+                // An unlinked recording session (no Mic strip) would otherwise report the default
+                // group and show up as playback.
+                var isCapture = session.Flow == AudioSessionFlow.Capture;
+                if (isCapture && !_volumeState.IsSessionLinked(session.SessionKey))
+                    continue;
                 if (_volumeState.GetGroupIdForSession(session.SessionKey) != strip.GroupId)
                     continue;
 
@@ -350,7 +365,7 @@ public partial class MainWindow : Window
                 if (!seenExecutables.Add(string.IsNullOrEmpty(session.ExecutablePath) ? session.SessionKey : session.ExecutablePath))
                     continue;
 
-                strip.SessionChips.Add(new SessionChipViewModel(session.ExecutablePath, session.DisplayName, strip.GroupId));
+                strip.SessionChips.Add(new SessionChipViewModel(session.ExecutablePath, session.DisplayName, strip.GroupId, isCapture));
             }
 
             strip.HasNoSessions = strip.SessionChips.Count == 0;
@@ -365,7 +380,10 @@ public partial class MainWindow : Window
     {
         var appName = System.IO.Path.GetFileNameWithoutExtension(e.ExecutablePath);
         var fallbackName = _volumeState.HasGroup(e.FallbackGroupId) ? _volumeState.GetGroup(e.FallbackGroupId).Name : e.FallbackGroupId;
-        ShowNotice($"{appName}'s saved group no longer exists. Moved to {fallbackName}.");
+        // The group can still exist when it's the Mic strip, which never holds playback.
+        ShowNotice(_volumeState.HasGroup(e.MissingGroupId)
+            ? $"{appName}'s playback can't go to {_volumeState.GetGroup(e.MissingGroupId).Name}. Moved to {fallbackName}."
+            : $"{appName}'s saved group no longer exists. Moved to {fallbackName}.");
     }
 
     private void ShowNotice(string text)

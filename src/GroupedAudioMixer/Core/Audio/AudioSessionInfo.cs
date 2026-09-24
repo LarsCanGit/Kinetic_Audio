@@ -12,4 +12,18 @@ namespace KineticAudio.Core.Audio;
 /// used for exe-to-group persistence (a session key is not, since sessions are not persistent).
 /// </param>
 /// <param name="DisplayName">Human-readable name for UI display.</param>
-public sealed record AudioSessionInfo(string SessionKey, string ExecutablePath, string DisplayName);
+/// <param name="Flow">
+/// Whether the session plays audio (render) or records it (capture). Capture sessions belong to
+/// the Mic strip regardless of the executable's playback group.
+/// </param>
+public sealed record AudioSessionInfo(
+    string SessionKey,
+    string ExecutablePath,
+    string DisplayName,
+    AudioSessionFlow Flow = AudioSessionFlow.Render);
+
+public enum AudioSessionFlow
+{
+    Render,
+    Capture,
+}

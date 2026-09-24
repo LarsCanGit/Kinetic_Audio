@@ -190,6 +190,7 @@ public partial class SettingsWindow : Window
     private void LoadHotkeyAndGeneralTab()
     {
         HotkeyBox.Text = FormatHotkey(_settings.CycleHotkeyModifiers, _settings.CycleHotkeyKey);
+        MuteMainHotkeyBox.Text = FormatHotkey(_settings.MuteMainHotkeyModifiers, _settings.MuteMainHotkeyKey);
         RunAtStartupCheck.IsChecked = _settings.RunAtStartup;
         MinimizeToTrayCheck.IsChecked = _settings.MinimizeToTray;
         NotifyOnSwitchCheck.IsChecked = _settings.NotifyOnSwitch;
@@ -198,35 +199,27 @@ public partial class SettingsWindow : Window
     private static string FormatHotkey(ModifierKeys modifiers, Key key) =>
         modifiers == ModifierKeys.None ? key.ToString() : $"{modifiers}+{key}";
 
-    private void HotkeyBox_GotFocus(object sender, RoutedEventArgs e)
-    {
-        HotkeyErrorText.Text = string.Empty;
-    }
+    private void HotkeyBox_GotFocus(object sender, RoutedEventArgs e) => HotkeyErrorText.Text = string.Empty;
 
-    private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e) =>
+        RebindFromKeyPress(e, HotkeyAction.CycleDevice, HotkeyBox, HotkeyErrorText);
+
+    private void MuteMainHotkeyBox_GotFocus(object sender, RoutedEventArgs e) => MuteMainHotkeyErrorText.Text = string.Empty;
+
+    private void MuteMainHotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e) =>
+        RebindFromKeyPress(e, HotkeyAction.MuteMain, MuteMainHotkeyBox, MuteMainHotkeyErrorText);
+
+    private void RebindFromKeyPress(KeyEventArgs e, HotkeyAction action, TextBox box, TextBlock errorText)
     {
+        e.Handled = true;
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
             or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
-        {
-            e.Handled = true;
             return;
-        }
 
-        e.Handled = true;
-        var modifiers = Keyboard.Modifiers;
-
-        var error = _app.TryRebindCycleHotkey(modifiers, key);
-        if (error != null)
-        {
-            HotkeyErrorText.Text = error;
-            HotkeyBox.Text = FormatHotkey(_settings.CycleHotkeyModifiers, _settings.CycleHotkeyKey);
-        }
-        else
-        {
-            HotkeyErrorText.Text = string.Empty;
-            HotkeyBox.Text = FormatHotkey(modifiers, key);
-        }
+        errorText.Text = _app.TryRebindHotkey(action, Keyboard.Modifiers, key) ?? string.Empty;
+        var (modifiers, boundKey) = _app.GetHotkey(action);
+        box.Text = FormatHotkey(modifiers, boundKey);
     }
 
     private void RunAtStartupCheck_Changed(object sender, RoutedEventArgs e)

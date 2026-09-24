@@ -2,7 +2,8 @@ namespace KineticAudio.Core.Volume;
 
 /// <summary>
 /// Owns group volume, Main volume, and mute state, and computes effective per-session volume
-/// as <c>group.Volume * main.Volume</c>. This is pure logic with no Core Audio dependency, so it
+/// as <c>group.Volume * main.Volume</c>, except for main-independent groups (the Mic strip), which
+/// Main Out does not scale or mute. This is pure logic with no Core Audio dependency, so it
 /// unit-tests in isolation.
 ///
 /// Shared by design (binding decision D4): both the Phase 1 per-session writer and any future
@@ -24,13 +25,20 @@ public sealed class VolumeStateManager
     private readonly Dictionary<string, MixerGroup> _groups;
     private readonly Dictionary<string, string> _sessionToGroup = new();
     private readonly string _defaultGroupId;
+    private readonly HashSet<string> _mainIndependentGroupIds;
     private long _version;
 
     public MainChannel Main { get; } = new();
 
     public event EventHandler<EffectiveVolumeChangedEventArgs>? EffectiveVolumeChanged;
 
-    public VolumeStateManager(IEnumerable<MixerGroup> initialGroups, string defaultGroupId)
+    /// <param name="mainIndependentGroupIds">Groups Main volume and mute don't apply to. Main Out is
+    /// the playback master, so the Mic strip (capture sessions) is listed here and stays live when
+    /// Main is muted.</param>
+    public VolumeStateManager(
+        IEnumerable<MixerGroup> initialGroups,
+        string defaultGroupId,
+        IEnumerable<string>? mainIndependentGroupIds = null)
     {
         _groups = initialGroups.ToDictionary(g => g.Id);
         if (_groups.Count == 0)
@@ -39,6 +47,7 @@ public sealed class VolumeStateManager
             throw new ArgumentException($"Default group '{defaultGroupId}' is not among the initial groups.", nameof(defaultGroupId));
 
         _defaultGroupId = defaultGroupId;
+        _mainIndependentGroupIds = new HashSet<string>(mainIndependentGroupIds ?? []);
     }
 
     /// <summary>A snapshot of the groups, safe to enumerate while other threads mutate state.</summary>
@@ -92,6 +101,11 @@ public sealed class VolumeStateManager
         lock (_lock) _sessionToGroup.Remove(sessionKey);
     }
 
+    public bool IsSessionLinked(string sessionKey)
+    {
+        lock (_lock) return _sessionToGroup.ContainsKey(sessionKey);
+    }
+
     public string GetGroupIdForSession(string sessionKey)
     {
         lock (_lock) return _sessionToGroup.TryGetValue(sessionKey, out var groupId) ? groupId : _defaultGroupId;
@@ -131,7 +145,7 @@ public sealed class VolumeStateManager
         lock (_lock)
         {
             Main.Volume = Math.Clamp(volume, 0f, 1f);
-            RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+            RaiseEffectiveVolumeChanged(GetSessionsFollowingMain());
         }
     }
 
@@ -140,7 +154,7 @@ public sealed class VolumeStateManager
         lock (_lock)
         {
             Main.IsMuted = true;
-            RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+            RaiseEffectiveVolumeChanged(GetSessionsFollowingMain());
         }
     }
 
@@ -149,19 +163,35 @@ public sealed class VolumeStateManager
         lock (_lock)
         {
             Main.IsMuted = false;
-            RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+            RaiseEffectiveVolumeChanged(GetSessionsFollowingMain());
         }
     }
 
-    /// <summary>Effective volume to write to Core Audio for this session: group.Volume * main.Volume.</summary>
+    /// <summary>
+    /// Flips Main mute (the Main mute hotkey). Unmuting restores the exact prior level, as with
+    /// <see cref="UnmuteMain"/>. Returns the new muted state.
+    /// </summary>
+    public bool ToggleMainMute()
+    {
+        lock (_lock)
+        {
+            if (Main.IsMuted) UnmuteMain(); else MuteMain();
+            return Main.IsMuted;
+        }
+    }
+
+    /// <summary>
+    /// Effective volume to write to Core Audio for this session: group.Volume * main.Volume, or
+    /// just group.Volume for a main-independent group.
+    /// </summary>
     public float GetEffectiveVolume(string sessionKey)
     {
         lock (_lock)
         {
-            var group = _groups[GetGroupIdForSession(sessionKey)];
+            var groupId = GetGroupIdForSession(sessionKey);
+            var group = _groups[groupId];
             var groupFactor = group.IsMuted ? 0f : group.Volume;
-            var mainFactor = Main.IsMuted ? 0f : Main.Volume;
-            return groupFactor * mainFactor;
+            return groupFactor * GetMainFactor(groupId);
         }
     }
 
@@ -194,7 +224,7 @@ public sealed class VolumeStateManager
 
             var groupId = GetGroupIdForSession(sessionKey);
             var group = _groups[groupId];
-            var mainFactor = Main.IsMuted ? 0f : Main.Volume;
+            var mainFactor = GetMainFactor(groupId);
 
             // Can't reliably back-calculate a group fader from a volume that's forced to zero
             // by mute state on either channel.
@@ -206,6 +236,12 @@ public sealed class VolumeStateManager
             return true;
         }
     }
+
+    private float GetMainFactor(string groupId) =>
+        _mainIndependentGroupIds.Contains(groupId) ? 1f : Main.IsMuted ? 0f : Main.Volume;
+
+    private List<string> GetSessionsFollowingMain() =>
+        _sessionToGroup.Where(kv => !_mainIndependentGroupIds.Contains(kv.Value)).Select(kv => kv.Key).ToList();
 
     private List<string> GetSessionsInGroup(string groupId) =>
         _sessionToGroup.Where(kv => kv.Value == groupId).Select(kv => kv.Key).ToList();

@@ -257,6 +257,15 @@
                     </Border>
                     <TextBlock x:Name="HotkeyErrorText" Foreground="#E05A4E" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
 
+                    <TextBlock Text="MAIN MUTE HOTKEY" FontWeight="Bold" Margin="0,20,0,4"/>
+                    <TextBlock Text="Toggles Main mute. Unmuting restores the previous levels." Foreground="{StaticResource SubTextBrush}" FontSize="11" Margin="0,0,0,6"/>
+                    <Border Style="{StaticResource DeviceTileStyle}" Width="240" HorizontalAlignment="Left">
+                        <TextBox x:Name="MuteMainHotkeyBox" IsReadOnly="True" Background="Transparent" BorderThickness="0"
+                                 Foreground="{StaticResource TextBrush}" Focusable="True" Cursor="Hand"
+                                 PreviewKeyDown="MuteMainHotkeyBox_PreviewKeyDown" GotFocus="MuteMainHotkeyBox_GotFocus"/>
+                    </Border>
+                    <TextBlock x:Name="MuteMainHotkeyErrorText" Foreground="#E05A4E" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+
                     <TextBlock Text="GENERAL" FontWeight="Bold" Margin="0,20,0,4"/>
                     <CheckBox x:Name="RunAtStartupCheck" Content="Run at Windows startup" Checked="RunAtStartupCheck_Changed" Unchecked="RunAtStartupCheck_Changed"/>
                     <CheckBox x:Name="MinimizeToTrayCheck" Content="Minimize to tray" Checked="MinimizeToTrayCheck_Changed" Unchecked="MinimizeToTrayCheck_Changed"/>

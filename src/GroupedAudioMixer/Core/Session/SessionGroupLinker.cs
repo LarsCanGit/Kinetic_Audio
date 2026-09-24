@@ -19,6 +19,10 @@ namespace KineticAudio.Core.Session;
 /// <see cref="ExecutableGroupMap.SetMapping"/> and immediately reassigns any live session(s) for
 /// that executable, rather than only affecting future session creations.
 ///
+/// Capture (recording) sessions always link to the capture group (the Mic strip), whatever the
+/// executable is mapped to: the map records where an app's playback goes. Without a capture group
+/// they aren't linked at all, so a recording stream never lands in a playback group.
+///
 /// A removed session is dropped from <see cref="VolumeStateManager"/>'s live tracking only - its
 /// entry in <see cref="ExecutableGroupMap"/> is untouched, so relaunching the executable re-links
 /// it to the same group.
@@ -28,6 +32,7 @@ public sealed class SessionGroupLinker : IDisposable
     private readonly IAudioSessionProvider _sessionProvider;
     private readonly ExecutableGroupMap _executableGroupMap;
     private readonly VolumeStateManager _volumeStateManager;
+    private readonly string? _captureGroupId;
 
     /// <summary>
     /// Raised when an executable's stored group no longer exists and it was moved to the default
@@ -39,11 +44,15 @@ public sealed class SessionGroupLinker : IDisposable
         IAudioSessionProvider sessionProvider,
         ExecutableGroupMap executableGroupMap,
         VolumeStateManager volumeStateManager,
-        EventHandler<MappingFallbackEventArgs>? onMappingFellBack = null)
+        EventHandler<MappingFallbackEventArgs>? onMappingFellBack = null,
+        string? captureGroupId = null)
     {
         _sessionProvider = sessionProvider;
         _executableGroupMap = executableGroupMap;
         _volumeStateManager = volumeStateManager;
+        _captureGroupId = captureGroupId is not null && volumeStateManager.HasGroup(captureGroupId)
+            ? captureGroupId
+            : null;
 
         // Subscribed before the initial link pass so fallbacks for already-running sessions
         // aren't lost at startup, which is exactly when a stale config shows up.
@@ -67,12 +76,15 @@ public sealed class SessionGroupLinker : IDisposable
     {
         if (!_volumeStateManager.HasGroup(groupId))
             throw new ArgumentException($"Unknown group '{groupId}'.", nameof(groupId));
+        if (IsCaptureGroup(groupId))
+            throw new ArgumentException($"Group '{groupId}' only holds recording sessions.", nameof(groupId));
 
         _executableGroupMap.SetMapping(executablePath, groupId);
 
         foreach (var session in _sessionProvider.GetActiveSessions())
         {
-            if (string.Equals(session.ExecutablePath, executablePath, StringComparison.OrdinalIgnoreCase))
+            if (session.Flow == AudioSessionFlow.Render
+                && string.Equals(session.ExecutablePath, executablePath, StringComparison.OrdinalIgnoreCase))
                 _volumeStateManager.AssignSessionToGroup(session.SessionKey, groupId);
         }
     }
@@ -84,12 +96,20 @@ public sealed class SessionGroupLinker : IDisposable
 
     private void Link(AudioSessionInfo session)
     {
+        if (session.Flow == AudioSessionFlow.Capture)
+        {
+            if (_captureGroupId is not null)
+                _volumeStateManager.AssignSessionToGroup(session.SessionKey, _captureGroupId);
+            return;
+        }
+
         var mappedGroupId = _executableGroupMap.TryGetGroupId(session.ExecutablePath);
         var groupId = mappedGroupId ?? _volumeStateManager.DefaultGroupId;
 
-        if (mappedGroupId is not null && !_volumeStateManager.HasGroup(mappedGroupId))
+        if (mappedGroupId is not null && (!_volumeStateManager.HasGroup(mappedGroupId) || IsCaptureGroup(mappedGroupId)))
         {
-            // Stale mapping (the group id no longer exists, e.g. a hand-edited or older config).
+            // Stale mapping (the group id no longer exists, or is the capture group, which never
+            // holds playback; e.g. a hand-edited or older config).
             // Rewrite it through the single writer so this only happens once, and tell the UI
             // rather than falling back silently.
             groupId = _volumeStateManager.DefaultGroupId;
@@ -99,6 +119,9 @@ public sealed class SessionGroupLinker : IDisposable
 
         _volumeStateManager.AssignSessionToGroup(session.SessionKey, groupId);
     }
+
+    private bool IsCaptureGroup(string groupId) =>
+        _captureGroupId is not null && string.Equals(groupId, _captureGroupId, StringComparison.Ordinal);
 
     public void Dispose()
     {

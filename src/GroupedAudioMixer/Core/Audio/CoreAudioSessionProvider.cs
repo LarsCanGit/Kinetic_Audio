@@ -19,7 +19,8 @@ namespace KineticAudio.Core.Audio;
 ///
 /// Sessions belong to one endpoint, and apps aren't all on the default device (a call app on the
 /// communications device, a game pinned to a headset in Windows' per-app routing), so the provider
-/// binds a session manager on every active render endpoint. When an endpoint is added, removed,
+/// binds a session manager on every active render endpoint, and on every active capture endpoint
+/// so recording apps can be driven by the Mic strip. When an endpoint is added, removed,
 /// enabled or disabled, the endpoint set is re-synced: a lost device's sessions are reported
 /// removed and a new device's sessions are reported created, which lets the linker/writer apply
 /// group x main volume to them straight away. Session keys come from
@@ -107,7 +108,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
     }
 
     /// <summary>
-    /// Binds every active render endpoint not yet bound and unbinds any bound endpoint that is no
+    /// Binds every active render and capture endpoint not yet bound and unbinds any bound endpoint that is no
     /// longer active. Idempotent, so redundant device notifications are harmless. No active
     /// endpoints (everything unplugged or disabled) leaves the provider with no sessions until
     /// one appears.
@@ -119,7 +120,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
             if (_disposed)
                 return;
 
-            var active = EnumerateActiveRenderDevices();
+            var active = EnumerateActiveDevices();
             try
             {
                 List<string> stale;
@@ -138,7 +139,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
                     }
                 }
 
-                foreach (var (deviceId, device) in active)
+                foreach (var (deviceId, (device, flow)) in active)
                 {
                     bool alreadyBound;
                     lock (_lock)
@@ -148,7 +149,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
                     if (alreadyBound)
                         continue;
 
-                    var created = Bind(deviceId, device);
+                    var created = Bind(deviceId, device, flow);
                     if (raiseEvents)
                     {
                         foreach (var info in created)
@@ -160,32 +161,42 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
             {
                 // The session manager Bind activated holds its own reference, so the device
                 // objects themselves can go.
-                foreach (var device in active.Values)
+                foreach (var (device, _) in active.Values)
                     Marshal.ReleaseComObject(device);
             }
         }
     }
 
-    private Dictionary<string, IMMDevice> EnumerateActiveRenderDevices()
+    private Dictionary<string, (IMMDevice Device, AudioSessionFlow Flow)> EnumerateActiveDevices()
+    {
+        var devices = new Dictionary<string, (IMMDevice, AudioSessionFlow)>(StringComparer.OrdinalIgnoreCase);
+        AddActiveDevices(EDataFlow.eRender, AudioSessionFlow.Render, devices);
+        AddActiveDevices(EDataFlow.eCapture, AudioSessionFlow.Capture, devices);
+        return devices;
+    }
+
+    private void AddActiveDevices(
+        EDataFlow dataFlow,
+        AudioSessionFlow flow,
+        Dictionary<string, (IMMDevice, AudioSessionFlow)> devices)
     {
         const uint DEVICE_STATE_ACTIVE = 0x1;
-        var devices = new Dictionary<string, IMMDevice>(StringComparer.OrdinalIgnoreCase);
 
-        if (_deviceEnumerator.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE_ACTIVE, out var collectionPtr) < 0)
-            return devices;
+        if (_deviceEnumerator.EnumAudioEndpoints(dataFlow, DEVICE_STATE_ACTIVE, out var collectionPtr) < 0)
+            return;
         var collection = (IMMDeviceCollection)Marshal.GetObjectForIUnknown(collectionPtr);
         Marshal.Release(collectionPtr);
 
         try
         {
             if (collection.GetCount(out var count) < 0)
-                return devices;
+                return;
             for (var i = 0; i < count; i++)
             {
                 if (collection.Item(i, out var device) < 0)
                     continue;
                 if (device.GetId(out var id) >= 0 && !string.IsNullOrEmpty(id) && !devices.ContainsKey(id))
-                    devices[id] = device;
+                    devices[id] = (device, flow);
                 else
                     Marshal.ReleaseComObject(device);
             }
@@ -194,14 +205,13 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
         {
             Marshal.ReleaseComObject(collection);
         }
-        return devices;
     }
 
     /// <summary>
     /// Activates the session manager on <paramref name="device"/> and tracks its current sessions.
     /// Caller holds <see cref="_bindLock"/>.
     /// </summary>
-    private List<AudioSessionInfo> Bind(string deviceId, IMMDevice device)
+    private List<AudioSessionInfo> Bind(string deviceId, IMMDevice device, AudioSessionFlow flow)
     {
         var created = new List<AudioSessionInfo>();
 
@@ -213,7 +223,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
 
         lock (_lock)
         {
-            _endpoints[deviceId] = new EndpointBinding(sessionManager, notificationSink);
+            _endpoints[deviceId] = new EndpointBinding(sessionManager, notificationSink, flow);
         }
 
         // Registered before enumerating so a session created in between isn't missed;
@@ -368,7 +378,8 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
         if (control2.RegisterAudioSessionNotification(eventSink) < 0)
             return null;
 
-        var info = new AudioSessionInfo(sessionKey, executablePath, displayName);
+        var flow = _endpoints.TryGetValue(deviceId, out var binding) ? binding.Flow : AudioSessionFlow.Render;
+        var info = new AudioSessionInfo(sessionKey, executablePath, displayName, flow);
         _sessions[sessionKey] = new SessionEntry(deviceId, info, control2, volume, eventSink);
         return info;
     }
@@ -425,7 +436,8 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
 
     private sealed record EndpointBinding(
         IAudioSessionManager2 SessionManager,
-        SessionNotificationSink NotificationSink);
+        SessionNotificationSink NotificationSink,
+        AudioSessionFlow Flow);
 
     /// <summary>
     /// Registered once per bound endpoint with
@@ -445,9 +457,8 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
 
     /// <summary>
     /// Registered with <see cref="IMMDeviceEnumerator.RegisterEndpointNotificationCallback"/> to
-    /// keep the bound endpoint set in step with the active render devices. The callbacks don't
-    /// say which data flow a device is, so capture-device changes trigger a sync too; it's a no-op.
-    /// A default-device change needs nothing: every active endpoint is already bound.
+    /// keep the bound endpoint set in step with the active render and capture devices. A
+    /// default-device change needs nothing: every active endpoint is already bound.
     /// </summary>
     private sealed class EndpointNotificationSink(CoreAudioSessionProvider owner) : IMMNotificationClient
     {

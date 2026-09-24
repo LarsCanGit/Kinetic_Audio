@@ -12,6 +12,108 @@ public class SessionGroupLinkerTests
     private static VolumeStateManager CreateManager() =>
         new(new[] { new MixerGroup("group-1", "Group 1"), new MixerGroup("group-2", "Group 2") }, "group-1");
 
+    private static VolumeStateManager CreateManagerWithMic() =>
+        new(new[] { new MixerGroup("group-1", "Group 1"), new MixerGroup("group-2", "Group 2"), new MixerGroup("mic", "Mic") },
+            "group-1", mainIndependentGroupIds: ["mic"]);
+
+    private static AudioSessionInfo Capture(string key, string exe, string name) =>
+        new(key, exe, name, AudioSessionFlow.Capture);
+
+    [Fact]
+    public void CaptureSession_LinksToCaptureGroup_IgnoringExecutableMapping()
+    {
+        // Discord's playback is mapped to Group 2; its microphone stream still belongs on Mic.
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        map.SetMapping(@"C:\Apps\discord.exe", "group-2");
+        var manager = CreateManagerWithMic();
+        using var linker = new SessionGroupLinker(provider, map, manager, captureGroupId: "mic");
+
+        provider.RaiseSessionCreated(new AudioSessionInfo("out-1", @"C:\Apps\discord.exe", "Discord"));
+        provider.RaiseSessionCreated(Capture("in-1", @"C:\Apps\discord.exe", "Discord"));
+
+        Assert.Equal("group-2", manager.GetGroupIdForSession("out-1"));
+        Assert.Equal("mic", manager.GetGroupIdForSession("in-1"));
+    }
+
+    [Fact]
+    public void CaptureSession_AlreadyActiveAtStartup_LinksToCaptureGroup()
+    {
+        var provider = new FakeAudioSessionProvider();
+        provider.RaiseSessionCreated(Capture("in-1", @"C:\Apps\obs64.exe", "OBS"));
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+
+        var manager = CreateManagerWithMic();
+
+        using var linker = new SessionGroupLinker(provider, map, manager, captureGroupId: "mic");
+
+        Assert.Equal("mic", manager.GetGroupIdForSession("in-1"));
+    }
+
+    [Fact]
+    public void AssignExecutableToGroup_MovesOnlyPlaybackSessions_AndLeavesCaptureOnMic()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        var manager = CreateManagerWithMic();
+        using var linker = new SessionGroupLinker(provider, map, manager, captureGroupId: "mic");
+        provider.RaiseSessionCreated(new AudioSessionInfo("out-1", @"C:\Apps\discord.exe", "Discord"));
+        provider.RaiseSessionCreated(Capture("in-1", @"C:\Apps\discord.exe", "Discord"));
+
+        linker.AssignExecutableToGroup(@"C:\Apps\discord.exe", "group-2");
+
+        Assert.Equal("group-2", manager.GetGroupIdForSession("out-1"));
+        Assert.Equal("mic", manager.GetGroupIdForSession("in-1"));
+    }
+
+    [Fact]
+    public void AssignExecutableToGroup_ToCaptureGroup_IsRejected_AndMappingUnchanged()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        map.SetMapping(@"C:\Apps\discord.exe", "group-2");
+        var manager = CreateManagerWithMic();
+        using var linker = new SessionGroupLinker(provider, map, manager, captureGroupId: "mic");
+
+        Assert.Throws<ArgumentException>(() => linker.AssignExecutableToGroup(@"C:\Apps\discord.exe", "mic"));
+        Assert.Equal("group-2", map.TryGetGroupId(@"C:\Apps\discord.exe"));
+    }
+
+    [Fact]
+    public void PlaybackSession_MappedToCaptureGroup_FallsBackToDefault_AndRaisesNotice()
+    {
+        // A hand-edited or corrupt map entry must not put playback audio on the Mic strip.
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        map.SetMapping(@"C:\Apps\spotify.exe", "mic");
+        var manager = CreateManagerWithMic();
+        var notices = new List<MappingFallbackEventArgs>();
+        using var linker = new SessionGroupLinker(provider, map, manager, (_, e) => notices.Add(e), captureGroupId: "mic");
+
+        provider.RaiseSessionCreated(new AudioSessionInfo("out-1", @"C:\Apps\spotify.exe", "Spotify"));
+
+        Assert.Equal("group-1", manager.GetGroupIdForSession("out-1"));
+        Assert.Equal("group-1", map.TryGetGroupId(@"C:\Apps\spotify.exe"));
+        Assert.Equal("mic", Assert.Single(notices).MissingGroupId);
+    }
+
+    [Fact]
+    public void CaptureSession_WithoutCaptureGroup_IsNotLinked()
+    {
+        // No Mic strip configured: a recording stream must not land in a playback group.
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        var raised = false;
+        manager.EffectiveVolumeChanged += (_, _) => raised = true;
+
+        provider.RaiseSessionCreated(Capture("in-1", @"C:\Apps\obs64.exe", "OBS"));
+
+        Assert.False(raised);
+        Assert.False(manager.IsSessionLinked("in-1"));
+    }
+
     [Fact]
     public void SessionCreated_WithMappedExecutable_AssignsSessionToMappedGroup()
     {

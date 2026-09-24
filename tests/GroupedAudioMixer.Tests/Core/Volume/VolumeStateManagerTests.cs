@@ -53,6 +53,108 @@ public class VolumeStateManagerTests
     }
 
     [Fact]
+    public void ToggleMainMute_MutesThenRestoresExactPriorEffectiveVolume()
+    {
+        var manager = CreateManager();
+        manager.AssignSessionToGroup("session-1", "group-1");
+        manager.SetGroupVolume("group-1", 0.8f);
+        manager.SetMainVolume(0.6f);
+
+        Assert.True(manager.ToggleMainMute());
+        Assert.True(manager.Main.IsMuted);
+        Assert.Equal(0f, manager.GetEffectiveVolume("session-1"));
+
+        Assert.False(manager.ToggleMainMute());
+        Assert.False(manager.Main.IsMuted);
+        Assert.Equal(0.48f, manager.GetEffectiveVolume("session-1"), precision: 4);
+    }
+
+    [Fact]
+    public void ToggleMainMute_NotifiesEverySession()
+    {
+        var manager = CreateManager("group-2");
+        manager.AssignSessionToGroup("session-1", "group-1");
+        manager.AssignSessionToGroup("session-2", "group-2");
+        var notified = new List<string>();
+        manager.EffectiveVolumeChanged += (_, e) => notified.AddRange(e.Sessions.Select(s => s.SessionKey));
+
+        manager.ToggleMainMute();
+
+        Assert.Equal(new[] { "session-1", "session-2" }, notified.Order());
+    }
+
+    private static VolumeStateManager CreateManagerWithMic() =>
+        new(new[] { new MixerGroup("group-1", "Group 1"), new MixerGroup("mic", "Mic") }, "group-1",
+            mainIndependentGroupIds: ["mic"]);
+
+    [Fact]
+    public void MainIndependentGroup_IgnoresMainVolumeAndMute()
+    {
+        // Main Out is the output master; muting it (e.g. with the Main mute hotkey) must not
+        // silence or turn down the microphone.
+        var manager = CreateManagerWithMic();
+        manager.AssignSessionToGroup("mic-session", "mic");
+        manager.AssignSessionToGroup("playback", "group-1");
+        manager.SetGroupVolume("mic", 0.7f);
+        manager.SetMainVolume(0.5f);
+
+        Assert.Equal(0.7f, manager.GetEffectiveVolume("mic-session"), precision: 4);
+        Assert.Equal(0.5f, manager.GetEffectiveVolume("playback"), precision: 4);
+
+        manager.MuteMain();
+
+        Assert.Equal(0.7f, manager.GetEffectiveVolume("mic-session"), precision: 4);
+        Assert.Equal(0f, manager.GetEffectiveVolume("playback"));
+    }
+
+    [Fact]
+    public void MainChanges_DoNotNotifyMainIndependentSessions()
+    {
+        var manager = CreateManagerWithMic();
+        manager.AssignSessionToGroup("mic-session", "mic");
+        manager.AssignSessionToGroup("playback", "group-1");
+        var notified = new List<string>();
+        manager.EffectiveVolumeChanged += (_, e) => notified.AddRange(e.Sessions.Select(s => s.SessionKey));
+
+        manager.SetMainVolume(0.3f);
+        manager.ToggleMainMute();
+
+        Assert.DoesNotContain("mic-session", notified);
+        Assert.Contains("playback", notified);
+    }
+
+    [Fact]
+    public void MainIndependentGroup_StillMutesAndRestoresOnItsOwn()
+    {
+        var manager = CreateManagerWithMic();
+        manager.AssignSessionToGroup("mic-session", "mic");
+        manager.SetGroupVolume("mic", 0.6f);
+
+        manager.MuteGroup("mic");
+        Assert.Equal(0f, manager.GetEffectiveVolume("mic-session"));
+
+        manager.UnmuteGroup("mic");
+        Assert.Equal(0.6f, manager.GetEffectiveVolume("mic-session"), precision: 4);
+    }
+
+    [Fact]
+    public void ReconcileExternalVolume_MainIndependentGroup_TakesActualVolumeAsIs_EvenWhileMainMuted()
+    {
+        // An external change to an app's mic level (e.g. Discord's input slider writing the
+        // capture session volume) is the new Mic fader value; Main plays no part in it.
+        var manager = CreateManagerWithMic();
+        manager.AssignSessionToGroup("mic-session", "mic");
+        manager.SetGroupVolume("mic", 1.0f);
+        manager.SetMainVolume(0.5f);
+        manager.MuteMain();
+
+        var changed = manager.ReconcileExternalVolume("mic-session", 0.3f);
+
+        Assert.True(changed);
+        Assert.Equal(0.3f, manager.GetGroup("mic").Volume, precision: 4);
+    }
+
+    [Fact]
     public void AssignSessionToGroup_FallsBackToDefaultGroup_WhenGroupDoesNotExist()
     {
         var manager = CreateManager();
