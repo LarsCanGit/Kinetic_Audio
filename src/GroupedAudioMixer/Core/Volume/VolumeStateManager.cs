@@ -23,7 +23,7 @@ public sealed class VolumeStateManager
     private readonly object _lock = new();
     private readonly Dictionary<string, MixerGroup> _groups;
     private readonly Dictionary<string, string> _sessionToGroup = new();
-    private string _defaultGroupId;
+    private readonly string _defaultGroupId;
 
     public MainChannel Main { get; } = new();
 
@@ -54,44 +54,6 @@ public sealed class VolumeStateManager
     public MixerGroup GetGroup(string groupId)
     {
         lock (_lock) return _groups[groupId];
-    }
-
-    public void AddGroup(MixerGroup group)
-    {
-        lock (_lock) _groups.Add(group.Id, group);
-    }
-
-    /// <summary>
-    /// Removes a group, immediately reassigning any live sessions linked to it to the default
-    /// group (binding decision: group deletion reassigns live sessions immediately, not just
-    /// future ones via the exe map). Returns the reassigned session keys so the writer layer
-    /// can push fresh volumes for them.
-    /// </summary>
-    public IReadOnlyList<string> RemoveGroup(string groupId)
-    {
-        lock (_lock)
-        {
-            if (!_groups.ContainsKey(groupId))
-                throw new KeyNotFoundException($"Group '{groupId}' does not exist.");
-            if (_groups.Count == 1)
-                throw new InvalidOperationException("Cannot remove the last remaining group.");
-
-            _groups.Remove(groupId);
-
-            if (_defaultGroupId == groupId)
-                _defaultGroupId = _groups.Keys.First();
-
-            var reassigned = new List<string>();
-            foreach (var (sessionKey, sessionGroupId) in _sessionToGroup)
-            {
-                if (sessionGroupId != groupId) continue;
-                _sessionToGroup[sessionKey] = _defaultGroupId;
-                reassigned.Add(sessionKey);
-            }
-
-            RaiseEffectiveVolumeChanged(reassigned);
-            return reassigned;
-        }
     }
 
     /// <summary>

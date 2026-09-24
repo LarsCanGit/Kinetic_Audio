@@ -17,11 +17,11 @@ Full product/architecture spec: [Kinetic Audio - Product Design Doc.md](Kinetic%
 - **Session detection is event-driven** (`IAudioSessionNotification`), not polled. Polling is reserved only as a fallback for device-list/endpoint enumeration, never for the session-creation hot path.
 - **Executable→group map writes are serialized** through a single-writer path. Auto-link (on session creation) and manual drag-to-group both funnel through it so concurrent session bursts (an app launching several helper processes at once) can't race.
 - **External volume drift gets reconciled**, not ignored: poll each session's actual volume periodically (target interval: 250ms–1s) and treat a mismatch against `group_volume × main_volume` as a manual override — update the stored value and the UI rather than silently overwriting it on the next fader move.
-- **Group deletion reassigns live sessions immediately**, not just future ones via the map.
+- **Groups are fixed.** No groups can be added or removed at runtime (only renamed, and Mic not even that). This supersedes the design doc's D3 group-deletion reassignment.
 
 ## Testing
 
-- **Unit tests** (xUnit, `tests/GroupedAudioMixer.Tests`): all logic-layer code — volume math, group assignment, map conflict/fallback, mute/unmute-restore, group-deletion reassignment. Run against the fake `IAudioSessionProvider`, never real Core Audio.
+- **Unit tests** (xUnit, `tests/GroupedAudioMixer.Tests`): all logic-layer code: volume math, group assignment, map conflict/fallback, mute/unmute-restore. Run against the fake `IAudioSessionProvider`, never real Core Audio.
 - **E2E/manual regression checklist**, run before every release: device-switch hotkey, mute → unmute restore. These are the two flows where a silent regression is a real-world audio problem (wrong device mid-call, volume not restored), not just a UI bug.
 - **Mandatory regression rule:** every logic-layer bug fix gets a unit test reproducing it before the fix lands. Every bug fix touching hotkey-switch or mute/unmute gets added to the E2E checklist.
 

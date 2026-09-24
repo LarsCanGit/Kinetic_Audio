@@ -119,7 +119,9 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
 
     /// <summary>
     /// Attempts to add <paramref name="control"/> to <see cref="_sessions"/>. Must be called with
-    /// <see cref="_lock"/> held. Skips the system sounds session, which has no owning process.
+    /// <see cref="_lock"/> held. Skips the system sounds session, which has no owning process, and
+    /// any session that dies while it is being read (a failed HRESULT here means the process
+    /// exited or the device went away, which is expected rather than fatal).
     /// </summary>
     private AudioSessionInfo? TryTrackSession(IAudioSessionControl control)
     {
@@ -131,8 +133,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
         if (control2.IsSystemSoundsSession() == 0)
             return null;
 
-        ThrowIfFailed(control2.GetProcessId(out var processId));
-        if (processId == 0)
+        if (control2.GetProcessId(out var processId) < 0 || processId == 0)
             return null;
 
         string executablePath;
@@ -147,15 +148,17 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
             return null;
         }
 
-        ThrowIfFailed(control2.GetSessionInstanceIdentifier(out var sessionKey));
+        if (control2.GetSessionInstanceIdentifier(out var sessionKey) < 0 || string.IsNullOrEmpty(sessionKey))
+            return null;
 
-        control2.GetDisplayName(out var displayName);
-        if (string.IsNullOrWhiteSpace(displayName))
+        if (control2.GetDisplayName(out var displayName) < 0 || string.IsNullOrWhiteSpace(displayName))
             displayName = Path.GetFileNameWithoutExtension(executablePath);
 
         var volume = (ISimpleAudioVolume)control2;
         var eventSink = new SessionEventSink(this, sessionKey);
-        control2.RegisterAudioSessionNotification(eventSink);
+        // Without the event sink the session's removal would never be seen, so don't track it.
+        if (control2.RegisterAudioSessionNotification(eventSink) < 0)
+            return null;
 
         var info = new AudioSessionInfo(sessionKey, executablePath, displayName);
         _sessions[sessionKey] = new SessionEntry(info, control2, volume, eventSink);

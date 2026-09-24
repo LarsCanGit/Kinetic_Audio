@@ -70,39 +70,6 @@ public class VolumeStateManagerTests
     }
 
     [Fact]
-    public void RemoveGroup_ReassignsLiveSessionsToDefaultGroup_Immediately()
-    {
-        var manager = CreateManager("group-2");
-        manager.AssignSessionToGroup("session-1", "group-2");
-        manager.SetGroupVolume("group-2", 0.4f);
-        manager.SetGroupVolume("group-1", 0.9f);
-
-        var reassigned = manager.RemoveGroup("group-2");
-
-        Assert.Equal(["session-1"], reassigned);
-        Assert.Equal("group-1", manager.GetGroupIdForSession("session-1"));
-        Assert.Equal(0.9f, manager.GetEffectiveVolume("session-1"), precision: 4);
-    }
-
-    [Fact]
-    public void RemoveGroup_PromotesAnotherGroupToDefault_WhenDefaultGroupIsRemoved()
-    {
-        var manager = CreateManager("group-2");
-
-        manager.RemoveGroup("group-1");
-
-        Assert.Equal("group-2", manager.DefaultGroupId);
-    }
-
-    [Fact]
-    public void RemoveGroup_Throws_WhenOnlyOneGroupRemains()
-    {
-        var manager = CreateManager();
-
-        Assert.Throws<InvalidOperationException>(() => manager.RemoveGroup("group-1"));
-    }
-
-    [Fact]
     public void EffectiveVolumeChanged_FiresWithAffectedSessions_OnGroupVolumeChange()
     {
         var manager = CreateManager("group-2");
@@ -183,7 +150,7 @@ public class VolumeStateManagerTests
         Assert.Equal(0f, manager.GetGroup("group-1").Volume, precision: 4);
     }
     [Fact]
-    public void ConcurrentSessionChurn_WhileMovingMainAndReading_DoesNotThrow()
+    public async Task ConcurrentSessionChurn_WhileMovingMainAndReading_DoesNotThrow()
     {
         // Regression: Core Audio raises session create/remove on background threads while the
         // UI thread moves faders and reads the session table. Unsynchronized dictionary access
@@ -218,7 +185,8 @@ public class VolumeStateManagerTests
 
         start.Set();
         var all = Task.WhenAll(writers.Append(ui));
-        Assert.True(all.Wait(TimeSpan.FromSeconds(30)), "Concurrent operations did not finish (deadlock?).");
-        Assert.Null(all.Exception);
+        var finished = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(30))) == all;
+        Assert.True(finished, "Concurrent operations did not finish (deadlock?).");
+        await all; // Rethrows any exception from the worker tasks.
     }
 }
