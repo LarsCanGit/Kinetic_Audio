@@ -245,6 +245,8 @@ public partial class SettingsWindow : Window
 
     // ----- Groups tab -----
 
+    private sealed record MappedExecutable(string ExecutablePath, string DisplayName);
+
     private void LoadGroupsTab()
     {
         GroupsListBox.ItemsSource = null;
@@ -269,8 +271,8 @@ public partial class SettingsWindow : Window
 
         var mapped = _executableGroupMap.GetAllMappings()
             .Where(kv => string.Equals(kv.Value, group.Id, StringComparison.OrdinalIgnoreCase))
-            .Select(kv => kv.Key)
-            .OrderBy(x => x)
+            .Select(kv => new MappedExecutable(kv.Key, System.IO.Path.GetFileNameWithoutExtension(kv.Key)))
+            .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         MappingsListBox.ItemsSource = mapped;
@@ -299,10 +301,10 @@ public partial class SettingsWindow : Window
 
     private void RemoveMapping_Click(object sender, RoutedEventArgs e)
     {
-        if (MappingsListBox.SelectedItem is not string executablePath)
+        if (MappingsListBox.SelectedItem is not MappedExecutable mapped)
             return;
 
-        _executableGroupMap.RemoveMapping(executablePath);
+        _executableGroupMap.RemoveMapping(mapped.ExecutablePath);
         RefreshMappingsList();
     }
 }
