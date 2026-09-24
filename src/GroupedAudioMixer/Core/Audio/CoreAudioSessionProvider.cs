@@ -17,10 +17,14 @@ namespace KineticAudio.Core.Audio;
 /// <c>AudioSessionStateExpired</c>, since <c>IAudioSessionNotification</c> itself has no
 /// "session removed" callback.
 ///
-/// Sessions belong to one endpoint, so the provider follows the default render (multimedia)
-/// device: when it changes (hotkey switch or Windows' own sound settings) the old device's
-/// sessions are reported removed and the new device's sessions are reported created, which lets
-/// the linker/writer apply group x main volume to them straight away.
+/// Sessions belong to one endpoint, and apps aren't all on the default device (a call app on the
+/// communications device, a game pinned to a headset in Windows' per-app routing), so the provider
+/// binds a session manager on every active render endpoint. When an endpoint is added, removed,
+/// enabled or disabled, the endpoint set is re-synced: a lost device's sessions are reported
+/// removed and a new device's sessions are reported created, which lets the linker/writer apply
+/// group x main volume to them straight away. Session keys come from
+/// <c>GetSessionInstanceIdentifier</c>, which embeds the device id, so the same app on two devices
+/// is two distinct sessions.
 ///
 /// Not unit-tested; per the design doc's test-coverage model this class is covered by the D6
 /// manual/E2E regression pass (device-switch hotkey, mute/unmute-restore), not by xUnit against a
@@ -29,15 +33,14 @@ namespace KineticAudio.Core.Audio;
 public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposable
 {
     private readonly object _lock = new();
-    // Serializes binding to an endpoint so the removed/created events of two quick device
-    // switches can't interleave. Never taken by event subscribers, so raising events under it is safe.
+    // Serializes endpoint syncs so the removed/created events of two quick device changes can't
+    // interleave. Never taken by event subscribers, so raising events under it is safe.
     private readonly object _bindLock = new();
     private readonly Dictionary<string, SessionEntry> _sessions = new();
+    // Keyed by device id. Read under _lock (session callbacks check it); only changed under _bindLock.
+    private readonly Dictionary<string, EndpointBinding> _endpoints = new(StringComparer.OrdinalIgnoreCase);
     private readonly IMMDeviceEnumerator _deviceEnumerator;
     private readonly EndpointNotificationSink _endpointSink;
-    private IAudioSessionManager2? _sessionManager;
-    private SessionNotificationSink? _notificationSink;
-    private string? _boundDeviceId;
     private bool _disposed;
 
     public event EventHandler<AudioSessionEventArgs>? SessionCreated;
@@ -47,7 +50,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
     {
         _deviceEnumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
         // Startup: consumers read GetActiveSessions() after construction, so no events here.
-        BindToDefaultDevice(raiseEvents: false);
+        SyncEndpoints(raiseEvents: false);
 
         _endpointSink = new EndpointNotificationSink(this);
         ThrowIfFailed(_deviceEnumerator.RegisterEndpointNotificationCallback(_endpointSink));
@@ -104,54 +107,101 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
     }
 
     /// <summary>
-    /// Binds to the current default render (multimedia) endpoint, releasing the previous one.
-    /// No default device (everything unplugged or disabled) leaves the provider with no sessions
-    /// until one appears.
+    /// Binds every active render endpoint not yet bound and unbinds any bound endpoint that is no
+    /// longer active. Idempotent, so redundant device notifications are harmless. No active
+    /// endpoints (everything unplugged or disabled) leaves the provider with no sessions until
+    /// one appears.
     /// </summary>
-    private void BindToDefaultDevice(bool raiseEvents)
+    private void SyncEndpoints(bool raiseEvents)
     {
         lock (_bindLock)
         {
             if (_disposed)
                 return;
 
-            IMMDevice? device = null;
-            string? deviceId = null;
-            if (_deviceEnumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eMultimedia, out var defaultDevice) >= 0)
+            var active = EnumerateActiveRenderDevices();
+            try
             {
-                device = defaultDevice;
-                if (device.GetId(out var id) >= 0)
-                    deviceId = id;
+                List<string> stale;
+                lock (_lock)
+                {
+                    stale = _endpoints.Keys.Where(id => !active.ContainsKey(id)).ToList();
+                }
+
+                foreach (var deviceId in stale)
+                {
+                    var removed = Unbind(deviceId);
+                    if (raiseEvents)
+                    {
+                        foreach (var entry in removed)
+                            SessionRemoved?.Invoke(this, new AudioSessionEventArgs(entry.Info));
+                    }
+                }
+
+                foreach (var (deviceId, device) in active)
+                {
+                    bool alreadyBound;
+                    lock (_lock)
+                    {
+                        alreadyBound = _endpoints.ContainsKey(deviceId);
+                    }
+                    if (alreadyBound)
+                        continue;
+
+                    var created = Bind(deviceId, device);
+                    if (raiseEvents)
+                    {
+                        foreach (var info in created)
+                            SessionCreated?.Invoke(this, new AudioSessionEventArgs(info));
+                    }
+                }
             }
-
-            if (deviceId is not null && string.Equals(deviceId, _boundDeviceId, StringComparison.OrdinalIgnoreCase))
-                return;
-
-            var removed = Unbind();
-            if (raiseEvents)
+            finally
             {
-                foreach (var entry in removed)
-                    SessionRemoved?.Invoke(this, new AudioSessionEventArgs(entry.Info));
-            }
-
-            if (device is null || deviceId is null)
-                return;
-
-            var created = Bind(device);
-            _boundDeviceId = deviceId;
-            if (raiseEvents)
-            {
-                foreach (var info in created)
-                    SessionCreated?.Invoke(this, new AudioSessionEventArgs(info));
+                // The session manager Bind activated holds its own reference, so the device
+                // objects themselves can go.
+                foreach (var device in active.Values)
+                    Marshal.ReleaseComObject(device);
             }
         }
+    }
+
+    private Dictionary<string, IMMDevice> EnumerateActiveRenderDevices()
+    {
+        const uint DEVICE_STATE_ACTIVE = 0x1;
+        var devices = new Dictionary<string, IMMDevice>(StringComparer.OrdinalIgnoreCase);
+
+        if (_deviceEnumerator.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE_ACTIVE, out var collectionPtr) < 0)
+            return devices;
+        var collection = (IMMDeviceCollection)Marshal.GetObjectForIUnknown(collectionPtr);
+        Marshal.Release(collectionPtr);
+
+        try
+        {
+            if (collection.GetCount(out var count) < 0)
+                return devices;
+            for (var i = 0; i < count; i++)
+            {
+                if (collection.Item(i, out var device) < 0)
+                    continue;
+                if (device.GetId(out var id) >= 0 && !string.IsNullOrEmpty(id) && !devices.ContainsKey(id))
+                    devices[id] = device;
+                else
+                    Marshal.ReleaseComObject(device);
+            }
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(collection);
+        }
+        return devices;
     }
 
     /// <summary>
     /// Activates the session manager on <paramref name="device"/> and tracks its current sessions.
     /// Caller holds <see cref="_bindLock"/>.
     /// </summary>
-    private List<AudioSessionInfo> Bind(IMMDevice device)
+    private List<AudioSessionInfo> Bind(string deviceId, IMMDevice device)
     {
         var created = new List<AudioSessionInfo>();
 
@@ -159,12 +209,11 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
         if (device.Activate(ref sessionManagerIid, 0, IntPtr.Zero, out var sessionManagerObj) < 0)
             return created;
         var sessionManager = (IAudioSessionManager2)sessionManagerObj;
-        var notificationSink = new SessionNotificationSink(this);
+        var notificationSink = new SessionNotificationSink(this, deviceId);
 
         lock (_lock)
         {
-            _sessionManager = sessionManager;
-            _notificationSink = notificationSink;
+            _endpoints[deviceId] = new EndpointBinding(sessionManager, notificationSink);
         }
 
         // Registered before enumerating so a session created in between isn't missed;
@@ -182,7 +231,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
                     continue;
                 lock (_lock)
                 {
-                    var info = TryTrackSession(control);
+                    var info = TryTrackSession(deviceId, control);
                     if (info is not null)
                         created.Add(info);
                 }
@@ -193,24 +242,22 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
     }
 
     /// <summary>
-    /// Releases the current endpoint's session manager and sessions, returning the sessions
-    /// dropped. Caller holds <see cref="_bindLock"/>.
+    /// Releases one endpoint's session manager and sessions, returning the sessions dropped.
+    /// Caller holds <see cref="_bindLock"/>.
     /// </summary>
-    private List<SessionEntry> Unbind()
+    private List<SessionEntry> Unbind(string deviceId)
     {
-        IAudioSessionManager2? sessionManager;
-        SessionNotificationSink? notificationSink;
+        EndpointBinding? binding;
         List<SessionEntry> removed;
         lock (_lock)
         {
-            sessionManager = _sessionManager;
-            notificationSink = _notificationSink;
-            _sessionManager = null;
-            _notificationSink = null;
-            removed = _sessions.Values.ToList();
-            _sessions.Clear();
+            _endpoints.Remove(deviceId, out binding);
+            removed = _sessions.Values
+                .Where(entry => string.Equals(entry.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (var entry in removed)
+                _sessions.Remove(entry.Info.SessionKey);
         }
-        _boundDeviceId = null;
 
         foreach (var entry in removed)
         {
@@ -224,13 +271,12 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
             }
         }
 
-        if (sessionManager is not null)
+        if (binding is not null)
         {
             try
             {
-                if (notificationSink is not null)
-                    sessionManager.UnregisterSessionNotification(notificationSink);
-                Marshal.ReleaseComObject(sessionManager);
+                binding.SessionManager.UnregisterSessionNotification(binding.NotificationSink);
+                Marshal.ReleaseComObject(binding.SessionManager);
             }
             catch (Exception ex) when (ex is COMException or InvalidComObjectException)
             {
@@ -241,20 +287,21 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
     }
 
     /// <summary>
-    /// Called from <see cref="EndpointNotificationSink"/>. Core Audio forbids blocking or
-    /// re-registering inside its callbacks, so the rebind runs on the thread pool.
+    /// Called from <see cref="EndpointNotificationSink"/> on any endpoint add/remove/state change.
+    /// Core Audio forbids blocking or re-registering inside its callbacks, so the sync runs on the
+    /// thread pool.
     /// </summary>
-    private void HandleDefaultDeviceChanged()
+    private void HandleEndpointsChanged()
     {
         ThreadPool.QueueUserWorkItem(_ =>
         {
             try
             {
-                BindToDefaultDevice(raiseEvents: true);
+                SyncEndpoints(raiseEvents: true);
             }
             catch (Exception ex) when (ex is COMException or InvalidComObjectException or InvalidCastException)
             {
-                Debug.WriteLine($"Rebinding to the new default device failed: {ex}");
+                Debug.WriteLine($"Re-syncing audio endpoints failed: {ex}");
             }
         });
     }
@@ -265,10 +312,10 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
         AudioSessionInfo? info = null;
         lock (_lock)
         {
-            // A late callback from a device the provider has already switched away from.
-            if (!ReferenceEquals(sink, _notificationSink))
+            // A late callback from an endpoint the provider has already unbound.
+            if (!_endpoints.TryGetValue(sink.DeviceId, out var binding) || !ReferenceEquals(sink, binding.NotificationSink))
                 return;
-            info = TryTrackSession(newSession);
+            info = TryTrackSession(sink.DeviceId, newSession);
         }
         if (info is not null)
             SessionCreated?.Invoke(this, new AudioSessionEventArgs(info));
@@ -280,7 +327,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
     /// any session that dies while it is being read (a failed HRESULT here means the process
     /// exited or the device went away, which is expected rather than fatal).
     /// </summary>
-    private AudioSessionInfo? TryTrackSession(IAudioSessionControl control)
+    private AudioSessionInfo? TryTrackSession(string deviceId, IAudioSessionControl control)
     {
         if (control is not IAudioSessionControl2 control2)
         {
@@ -322,7 +369,7 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
             return null;
 
         var info = new AudioSessionInfo(sessionKey, executablePath, displayName);
-        _sessions[sessionKey] = new SessionEntry(info, control2, volume, eventSink);
+        _sessions[sessionKey] = new SessionEntry(deviceId, info, control2, volume, eventSink);
         return info;
     }
 
@@ -357,25 +404,38 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
         {
             if (_disposed) return;
             _disposed = true;
-            Unbind();
+            List<string> deviceIds;
+            lock (_lock)
+            {
+                deviceIds = _endpoints.Keys.ToList();
+            }
+            foreach (var deviceId in deviceIds)
+                Unbind(deviceId);
         }
 
         Marshal.ReleaseComObject(_deviceEnumerator);
     }
 
     private sealed record SessionEntry(
+        string DeviceId,
         AudioSessionInfo Info,
         IAudioSessionControl2 Control,
         ISimpleAudioVolume Volume,
         IAudioSessionEvents EventSink);
+
+    private sealed record EndpointBinding(
+        IAudioSessionManager2 SessionManager,
+        SessionNotificationSink NotificationSink);
 
     /// <summary>
     /// Registered once per bound endpoint with
     /// <see cref="IAudioSessionManager2.RegisterSessionNotification"/> to receive new-session
     /// callbacks (D8). Delegates back to the owning provider.
     /// </summary>
-    private sealed class SessionNotificationSink(CoreAudioSessionProvider owner) : IAudioSessionNotification
+    private sealed class SessionNotificationSink(CoreAudioSessionProvider owner, string deviceId) : IAudioSessionNotification
     {
+        public string DeviceId { get; } = deviceId;
+
         public int OnSessionCreated(IAudioSessionControl newSession)
         {
             owner.HandleSessionCreated(this, newSession);
@@ -385,23 +445,31 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
 
     /// <summary>
     /// Registered with <see cref="IMMDeviceEnumerator.RegisterEndpointNotificationCallback"/> to
-    /// follow default render device changes. Only the multimedia role is acted on; Windows raises
-    /// one callback per role for each switch.
+    /// keep the bound endpoint set in step with the active render devices. The callbacks don't
+    /// say which data flow a device is, so capture-device changes trigger a sync too; it's a no-op.
+    /// A default-device change needs nothing: every active endpoint is already bound.
     /// </summary>
     private sealed class EndpointNotificationSink(CoreAudioSessionProvider owner) : IMMNotificationClient
     {
-        public int OnDeviceStateChanged(string deviceId, uint newState) => 0;
-
-        public int OnDeviceAdded(string deviceId) => 0;
-
-        public int OnDeviceRemoved(string deviceId) => 0;
-
-        public int OnDefaultDeviceChanged(EDataFlow flow, ERole role, string? defaultDeviceId)
+        public int OnDeviceStateChanged(string deviceId, uint newState)
         {
-            if (flow == EDataFlow.eRender && role == ERole.eMultimedia)
-                owner.HandleDefaultDeviceChanged();
+            owner.HandleEndpointsChanged();
             return 0;
         }
+
+        public int OnDeviceAdded(string deviceId)
+        {
+            owner.HandleEndpointsChanged();
+            return 0;
+        }
+
+        public int OnDeviceRemoved(string deviceId)
+        {
+            owner.HandleEndpointsChanged();
+            return 0;
+        }
+
+        public int OnDefaultDeviceChanged(EDataFlow flow, ERole role, string? defaultDeviceId) => 0;
 
         public int OnPropertyValueChanged(string deviceId, PROPERTYKEY key) => 0;
     }
