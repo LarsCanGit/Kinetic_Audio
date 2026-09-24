@@ -12,6 +12,9 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Installer build output
+installer/output/
+
 # Visual Studio
 .vs/
 *.user
