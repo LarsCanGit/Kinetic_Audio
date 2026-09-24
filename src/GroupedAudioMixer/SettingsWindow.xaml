@@ -1,4 +1,4 @@
-<Window x:Class="GroupedAudioMixer.SettingsWindow"
+<Window x:Class="KineticAudio.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
@@ -277,9 +277,7 @@
                         <ListBox x:Name="GroupsListBox" Background="Transparent" BorderThickness="0"
                                  SelectionChanged="GroupsListBox_SelectionChanged" Height="280"/>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Button Content="Add" Click="AddGroup_Click"/>
                             <Button Content="Rename" Click="RenameGroup_Click"/>
-                            <Button Content="Remove" Click="RemoveGroup_Click"/>
                         </StackPanel>
                     </StackPanel>
 

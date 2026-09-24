@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Settings;
+namespace KineticAudio.Core.Settings;
 
 public interface IAppSettingsStore
 {

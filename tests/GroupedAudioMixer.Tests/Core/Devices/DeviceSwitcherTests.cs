@@ -1,7 +1,7 @@
-using GroupedAudioMixer.Core.Devices;
+using KineticAudio.Core.Devices;
 using Xunit;
 
-namespace GroupedAudioMixer.Tests.Core.Devices;
+namespace KineticAudio.Tests.Core.Devices;
 
 public class DeviceSwitcherTests
 {

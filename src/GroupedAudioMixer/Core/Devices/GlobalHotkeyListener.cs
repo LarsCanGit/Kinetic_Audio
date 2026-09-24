@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 
-namespace GroupedAudioMixer.Core.Devices;
+namespace KineticAudio.Core.Devices;
 
 /// <summary>
 /// Win32 global hotkey registration (<c>RegisterHotKey</c>/<c>WM_HOTKEY</c>) via a message-only
@@ -27,7 +27,7 @@ public sealed class GlobalHotkeyListener : IDisposable
 
     public GlobalHotkeyListener()
     {
-        var parameters = new HwndSourceParameters("GroupedAudioMixerHotkeyWindow")
+        var parameters = new HwndSourceParameters("KineticAudioHotkeyWindow")
         {
             WindowStyle = 0,
             Width = 0,

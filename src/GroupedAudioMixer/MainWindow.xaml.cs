@@ -1,56 +1,70 @@
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using GroupedAudioMixer.Core.Volume;
+using KineticAudio.Core.Audio;
+using KineticAudio.Core.Settings;
+using KineticAudio.Core.Volume;
 using Forms = System.Windows.Forms;
 
-namespace GroupedAudioMixer;
+namespace KineticAudio;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml
 /// </summary>
 public partial class MainWindow : Window
 {
-    public const string Group1Id = "group1";
-    public const string MicId = "mic";
-
     private const double FaderMinDb = -60.0;
     private const double FaderMaxDb = 12.0;
     private const int MeterSegmentCount = 14;
     private static readonly double[] TickValuesDb = { 12, 0, -12, -24, -36, -48, -60 };
 
     private readonly VolumeStateManager _volumeState;
+    private readonly IAudioSessionProvider _sessionProvider;
     private bool _isInitializing = true;
     private Forms.NotifyIcon? _trayIcon;
 
-    public MainWindow(VolumeStateManager volumeState)
+    public ObservableCollection<GroupStripViewModel> Strips { get; } = new();
+
+    public MainWindow(VolumeStateManager volumeState, IAudioSessionProvider sessionProvider)
     {
         InitializeComponent();
 
         _volumeState = volumeState;
+        _sessionProvider = sessionProvider;
 
         Width = SystemParameters.PrimaryScreenWidth / 2;
         Height = SystemParameters.PrimaryScreenHeight / 2;
         MinWidth = MaxWidth = Width;
         MinHeight = MaxHeight = Height;
 
-        BuildTicks(MasterTicks);
-        BuildTicks(Group1Ticks);
-        BuildTicks(MicTicks);
+        var mainStrip = new GroupStripViewModel(groupId: null, isMasterStrip: true, title: "MAIN OUT");
+        Strips.Add(mainStrip);
+        foreach (var group in _volumeState.Groups)
+        {
+            var strip = new GroupStripViewModel(group.Id, isMasterStrip: false, title: group.Name.ToUpperInvariant());
+            Strips.Add(strip);
+        }
 
-        BuildMeter(MasterMeter);
-        BuildMeter(Group1Meter);
-        BuildMeter(MicMeter);
+        foreach (var strip in Strips)
+        {
+            var db = strip.IsMasterStrip
+                ? DbFromLinear(_volumeState.Main.Volume)
+                : DbFromLinear(_volumeState.GetGroup(strip.GroupId!).Volume);
+            strip.FaderValueDb = db;
+            strip.PercentText = FormatPercent(db);
+            strip.IsMuted = strip.IsMasterStrip ? _volumeState.Main.IsMuted : _volumeState.GetGroup(strip.GroupId!).IsMuted;
+        }
 
-        MasterFader.Value = 0.0;
-        Group1Fader.Value = -3.0;
-        MicFader.Value = -6.0;
-
-        _volumeState.SetMainVolume(LinearFromDb(MasterFader.Value));
-        _volumeState.SetGroupVolume(Group1Id, LinearFromDb(Group1Fader.Value));
-        _volumeState.SetGroupVolume(MicId, LinearFromDb(MicFader.Value));
+        // Core Audio session notifications can arrive on a non-UI thread, so marshal back to the
+        // dispatcher before touching the bound SessionChips collections. BeginInvoke, not Invoke:
+        // EffectiveVolumeChanged is raised under VolumeStateManager's lock, and blocking that
+        // thread on the UI thread (which may itself be waiting for the lock) would deadlock.
+        _volumeState.EffectiveVolumeChanged += (_, _) => Dispatcher.BeginInvoke(RebuildAllSessionCards);
+        _sessionProvider.SessionRemoved += (_, _) => Dispatcher.BeginInvoke(RebuildAllSessionCards);
+        RebuildAllSessionCards();
 
         _isInitializing = false;
     }
@@ -93,7 +107,7 @@ public partial class MainWindow : Window
             _trayIcon = new Forms.NotifyIcon
             {
                 Icon = System.Drawing.SystemIcons.Application,
-                Text = "Grouped Audio Mixer",
+                Text = "Kinetic Audio",
                 Visible = true,
             };
             _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
@@ -123,6 +137,32 @@ public partial class MainWindow : Window
     {
         _trayIcon?.Dispose();
         base.OnClosed(e);
+    }
+
+    private void Ticks_Loaded(object sender, RoutedEventArgs e)
+    {
+        var tickGrid = (System.Windows.Controls.Grid)sender;
+        if (tickGrid.DataContext is GroupStripViewModel strip)
+            strip.TicksGridElement = tickGrid;
+
+        if (tickGrid.Children.Count > 0)
+            return; // Loaded can re-fire (e.g. tab/visibility changes); build once.
+
+        BuildTicks(tickGrid);
+    }
+
+    private void Meter_Loaded(object sender, RoutedEventArgs e)
+    {
+        var meterGrid = (System.Windows.Controls.Grid)sender;
+        if (meterGrid.DataContext is not GroupStripViewModel strip)
+            return;
+
+        strip.MeterGridElement = meterGrid;
+
+        if (meterGrid.Children.Count == 0)
+            BuildMeter(meterGrid);
+
+        UpdateMeter(meterGrid, PercentOfRange(strip.FaderValueDb));
     }
 
     private static void BuildTicks(System.Windows.Controls.Grid tickGrid)
@@ -200,59 +240,67 @@ public partial class MainWindow : Window
 
     private static float LinearFromDb(double db) => (float)Math.Pow(10, db / 20.0);
 
+    private static double DbFromLinear(float linear) => linear <= 0f ? FaderMinDb : 20.0 * Math.Log10(linear);
+
     private static double PercentOfRange(double db) => (db - FaderMinDb) / (FaderMaxDb - FaderMinDb);
 
-    private void MasterFader_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private static string FormatPercent(double db) => $"{Math.Round(PercentOfRange(db) * 100)}%";
+
+    private void Fader_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        MasterDbText.Text = e.NewValue.ToString("0.0");
-        UpdateMeter(MasterMeter, PercentOfRange(e.NewValue));
+        var slider = (Slider)sender;
+        if (slider.DataContext is not GroupStripViewModel strip)
+            return;
+
+        strip.PercentText = FormatPercent(e.NewValue);
+        if (strip.MeterGridElement != null)
+            UpdateMeter(strip.MeterGridElement, PercentOfRange(e.NewValue));
+
         if (_isInitializing)
             return;
 
-        _volumeState.SetMainVolume(LinearFromDb(e.NewValue));
+        if (strip.IsMasterStrip)
+            _volumeState.SetMainVolume(LinearFromDb(e.NewValue));
+        else
+            _volumeState.SetGroupVolume(strip.GroupId!, LinearFromDb(e.NewValue));
     }
 
-    private void Group1Fader_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void MuteButton_Click(object sender, RoutedEventArgs e)
     {
-        Group1DbText.Text = e.NewValue.ToString("0.0");
-        UpdateMeter(Group1Meter, PercentOfRange(e.NewValue));
-        if (_isInitializing)
+        var button = (System.Windows.Controls.Primitives.ToggleButton)sender;
+        if (button.DataContext is not GroupStripViewModel strip)
             return;
 
-        _volumeState.SetGroupVolume(Group1Id, LinearFromDb(e.NewValue));
-    }
-
-    private void MicFader_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        MicDbText.Text = e.NewValue.ToString("0.0");
-        UpdateMeter(MicMeter, PercentOfRange(e.NewValue));
-        if (_isInitializing)
-            return;
-
-        _volumeState.SetGroupVolume(MicId, LinearFromDb(e.NewValue));
-    }
-
-    private void MasterMuteButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (MasterMuteButton.IsChecked == true)
-            _volumeState.MuteMain();
+        var isMuted = button.IsChecked == true;
+        if (strip.IsMasterStrip)
+        {
+            if (isMuted) _volumeState.MuteMain(); else _volumeState.UnmuteMain();
+        }
         else
-            _volumeState.UnmuteMain();
+        {
+            if (isMuted) _volumeState.MuteGroup(strip.GroupId!); else _volumeState.UnmuteGroup(strip.GroupId!);
+        }
     }
 
-    private void Group1MuteButton_Click(object sender, RoutedEventArgs e)
+    private void RebuildAllSessionCards()
     {
-        if (Group1MuteButton.IsChecked == true)
-            _volumeState.MuteGroup(Group1Id);
-        else
-            _volumeState.UnmuteGroup(Group1Id);
-    }
+        var sessions = _sessionProvider.GetActiveSessions();
 
-    private void MicMuteButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (MicMuteButton.IsChecked == true)
-            _volumeState.MuteGroup(MicId);
-        else
-            _volumeState.UnmuteGroup(MicId);
+        foreach (var strip in Strips)
+        {
+            if (!strip.ShowSessionCard)
+                continue;
+
+            strip.SessionChips.Clear();
+            foreach (var session in sessions)
+            {
+                if (_volumeState.GetGroupIdForSession(session.SessionKey) != strip.GroupId)
+                    continue;
+
+                strip.SessionChips.Add(new SessionChipViewModel(session.SessionKey, session.DisplayName));
+            }
+
+            strip.HasNoSessions = strip.SessionChips.Count == 0;
+        }
     }
 }

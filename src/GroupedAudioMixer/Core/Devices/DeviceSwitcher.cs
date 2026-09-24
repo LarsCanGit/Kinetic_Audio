@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Devices;
+namespace KineticAudio.Core.Devices;
 
 /// <summary>
 /// Cycle-switch hotkey logic (design doc: "SoundSwitch's actual killer feature is a global hotkey

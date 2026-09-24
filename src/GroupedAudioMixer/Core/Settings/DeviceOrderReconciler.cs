@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Settings;
+namespace KineticAudio.Core.Settings;
 
 /// <summary>Merges a persisted device order against the devices actually present on the system.
 /// Endpoint IDs can change on driver update/USB replug, so stale saved IDs are dropped from the

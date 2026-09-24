@@ -1,13 +1,13 @@
 using Microsoft.Win32;
 
-namespace GroupedAudioMixer.Core.Devices;
+namespace KineticAudio.Core.Devices;
 
 /// <summary>Wraps the HKCU Run-key registration used for the "run at Windows startup" toggle.
 /// Kept separate from JSON settings since it's OS integration, not app config.</summary>
 public static class StartupRegistration
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "GroupedAudioMixer";
+    private const string ValueName = "KineticAudio";
 
     public static bool IsEnabled()
     {

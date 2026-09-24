@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 
-namespace GroupedAudioMixer;
+namespace KineticAudio;
 
 public partial class TextInputDialog : Window
 {

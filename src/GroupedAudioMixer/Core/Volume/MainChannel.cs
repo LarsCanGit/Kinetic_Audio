@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Volume;
+namespace KineticAudio.Core.Volume;
 
 /// <summary>
 /// The Main channel: a global multiplier applied at write time on top of each group's fader.

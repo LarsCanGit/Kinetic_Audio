@@ -1,6 +1,6 @@
-using GroupedAudioMixer.Core.Devices;
+using KineticAudio.Core.Devices;
 
-namespace GroupedAudioMixer.Tests.Core.Devices;
+namespace KineticAudio.Tests.Core.Devices;
 
 /// <summary>
 /// In-memory <see cref="IAudioDeviceProvider"/> fake for testing <see cref="DeviceSwitcher"/>

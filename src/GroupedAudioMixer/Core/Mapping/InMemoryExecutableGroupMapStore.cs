@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Mapping;
+namespace KineticAudio.Core.Mapping;
 
 /// <summary>
 /// Non-persisted <see cref="IExecutableGroupMapStore"/>: mappings live only for the process

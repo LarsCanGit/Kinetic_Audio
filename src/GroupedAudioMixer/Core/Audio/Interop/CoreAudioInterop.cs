@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace GroupedAudioMixer.Core.Audio.Interop;
+namespace KineticAudio.Core.Audio.Interop;
 
 /// <summary>
 /// Raw Windows Core Audio COM interop declarations (mmdeviceapi.h / audiopolicy.h). Hand-rolled
@@ -211,8 +211,10 @@ internal interface IAudioSessionControl2
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface ISimpleAudioVolume
 {
+    [PreserveSig]
     int SetMasterVolume(float level, [In] ref Guid eventContext);
 
+    [PreserveSig]
     int GetMasterVolume(out float level);
 
     int SetMute([MarshalAs(UnmanagedType.Bool)] bool mute, [In] ref Guid eventContext);

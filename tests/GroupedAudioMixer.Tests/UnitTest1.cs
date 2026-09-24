@@ -1,4 +1,4 @@
-﻿namespace GroupedAudioMixer.Tests;
+﻿namespace KineticAudio.Tests;
 
 public class UnitTest1
 {

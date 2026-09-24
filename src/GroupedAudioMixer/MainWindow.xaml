@@ -1,17 +1,19 @@
-<Window x:Class="GroupedAudioMixer.MainWindow"
+<Window x:Class="KineticAudio.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:GroupedAudioMixer"
+        xmlns:local="clr-namespace:KineticAudio"
         mc:Ignorable="d"
-        Title="Grouped Audio Mixer"
+        Title="Kinetic Audio"
         WindowStartupLocation="CenterScreen"
         SizeToContent="Manual"
         ResizeMode="NoResize"
         WindowStyle="None"
         Background="#0A0B0C">
     <Window.Resources>
+
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
 
         <!-- Fonts: Oswald (display/labels) and IBM Plex Mono (numeric readouts) per docs/design spec,
              with system-installed fallbacks since neither ships with Windows by default. -->
@@ -268,7 +270,7 @@
     </Window.Resources>
 
     <Viewbox Stretch="Uniform">
-        <Border Width="1280" Height="800" Background="{StaticResource CanvasBrush}" Padding="50,24">
+        <Border Width="1500" Height="930" Background="{StaticResource CanvasBrush}" Padding="50,24">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -277,7 +279,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
-                <Border Grid.Row="0" Width="1180" Height="64" HorizontalAlignment="Left"
+                <Border Grid.Row="0" Width="1400" Height="64" HorizontalAlignment="Left"
                         Background="{StaticResource HeaderBrush}" BorderBrush="{StaticResource HeaderBorderBrush}"
                         BorderThickness="1" CornerRadius="6"
                         MouseLeftButtonDown="Header_MouseLeftButtonDown">
@@ -285,7 +287,7 @@
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="&#9612;&#9611;&#9613;" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource AmberBrush}"
                                        FontSize="16" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <TextBlock Text="GROUPED AUDIO MIXER" Foreground="{StaticResource PrimaryTextBrush}"
+                            <TextBlock Text="KINETIC AUDIO" Foreground="{StaticResource PrimaryTextBrush}"
                                        FontFamily="{StaticResource DisplayFont}" FontSize="18" FontWeight="Bold"
                                        VerticalAlignment="Center" Height="24"/>
                         </StackPanel>
@@ -318,180 +320,120 @@
                 </Border>
 
                 <!-- Rack panel -->
-                <Border Grid.Row="2" Width="1180" HorizontalAlignment="Left" VerticalAlignment="Top"
+                <Border Grid.Row="2" Width="1400" HorizontalAlignment="Left" VerticalAlignment="Top"
                         Background="{StaticResource RackBrush}" BorderBrush="{StaticResource RackBorderBrush}"
                         BorderThickness="1" CornerRadius="10" Padding="32,40">
-                    <Grid HorizontalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="230"/>
-                            <ColumnDefinition Width="36"/>
-                            <ColumnDefinition Width="200"/>
-                            <ColumnDefinition Width="36"/>
-                            <ColumnDefinition Width="200"/>
-                        </Grid.ColumnDefinitions>
+                    <ItemsControl ItemsSource="{Binding Strips, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  HorizontalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Margin" Value="10,0"/>
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="200" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="22,20">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{StaticResource StripBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMasterStrip}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource MasterStripBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="360"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
 
-                        <!-- Master strip -->
-                        <Border Grid.Column="0" Background="{StaticResource MasterStripBrush}"
-                                BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="26,22">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="360"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="{Binding Title}" Margin="0,0,0,16"
+                                                   FontFamily="{StaticResource DisplayFont}" FontSize="16" FontWeight="Bold"
+                                                   HorizontalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsMasterStrip}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource MasterAccentBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
 
-                                <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                                    <TextBlock Text="MASTER" Foreground="{StaticResource MasterAccentBrush}"
-                                               FontFamily="{StaticResource DisplayFont}" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="MAIN OUT" Foreground="{StaticResource SecondaryTextBrush}"
-                                               FontFamily="{StaticResource DisplayFont}" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0"/>
-                                </StackPanel>
+                                        <Grid Grid.Row="1" HorizontalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="22"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="56"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid Grid.Column="0" Height="360" Margin="0,0,6,0" Loaded="Ticks_Loaded"/>
+                                            <Grid Grid.Column="1" Width="11" Height="360" Margin="0,0,8,0" Loaded="Meter_Loaded"/>
+                                            <Border Grid.Column="2" Width="56" Height="360" Background="{StaticResource FaderHousingBrush}" CornerRadius="4">
+                                                <Slider Height="352" Width="34"
+                                                        Style="{StaticResource VerticalFaderStyle}"
+                                                        Value="{Binding FaderValueDb, Mode=TwoWay}"
+                                                        ValueChanged="Fader_ValueChanged"/>
+                                            </Border>
+                                        </Grid>
 
-                                <Grid Grid.Row="1" HorizontalAlignment="Center">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="24"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="58"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid Grid.Column="0" x:Name="MasterTicks" Height="360" Margin="0,0,6,0"/>
-                                    <Grid x:Name="MasterMeter" Grid.Column="1" Width="11" Height="360" Margin="0,0,8,0"/>
-                                    <Border Grid.Column="2" Width="58" Height="360" Background="{StaticResource FaderHousingBrush}" CornerRadius="4">
-                                        <Slider x:Name="MasterFader" Height="352" Width="34"
-                                                Style="{StaticResource VerticalFaderStyle}"
-                                                ValueChanged="MasterFader_ValueChanged"/>
-                                    </Border>
-                                </Grid>
+                                        <Border Grid.Row="2" Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
+                                                BorderThickness="1" CornerRadius="3" MinWidth="60" Margin="0,16,0,12" Padding="8,4">
+                                            <TextBlock Text="{Binding PercentText}" Foreground="{StaticResource ReadoutTextBrush}"
+                                                       FontFamily="{StaticResource MonoFont}" FontSize="14" HorizontalAlignment="Center"/>
+                                        </Border>
 
-                                <Border Grid.Row="2" Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
-                                        BorderThickness="1" CornerRadius="3" MinWidth="66" Margin="0,16,0,12" Padding="8,4">
-                                    <StackPanel HorizontalAlignment="Center">
-                                        <TextBlock x:Name="MasterDbText" Text="0.0" Foreground="{StaticResource ReadoutTextBrush}"
-                                                   FontFamily="{StaticResource MonoFont}" FontSize="14" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="dB" Foreground="{StaticResource ReadoutTextBrush}"
-                                                   FontFamily="{StaticResource MonoFont}" FontSize="10" HorizontalAlignment="Center"/>
-                                    </StackPanel>
+                                        <ToggleButton Grid.Row="3" Content="MUTE" Width="96"
+                                                      Style="{StaticResource MuteButtonStyle}"
+                                                      IsChecked="{Binding IsMuted, Mode=TwoWay}"
+                                                      Click="MuteButton_Click"/>
+
+                                        <Border Grid.Row="4" Margin="0,14,0,0" MaxHeight="110" MinHeight="40"
+                                                Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
+                                                BorderThickness="1" CornerRadius="4" Padding="8,6"
+                                                Visibility="{Binding ShowSessionCard, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <Grid>
+                                                <TextBlock Text="No apps assigned" Foreground="{StaticResource SecondaryTextBrush}"
+                                                           FontFamily="{StaticResource DisplayFont}" FontSize="10"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap"
+                                                           Visibility="{Binding HasNoSessions, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                    <ItemsControl ItemsSource="{Binding SessionChips}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Background="{StaticResource StripBrush}" CornerRadius="3"
+                                                                        Margin="0,0,0,4" Padding="6,3">
+                                                                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource PrimaryTextBrush}"
+                                                                               FontFamily="{StaticResource DisplayFont}" FontSize="10"
+                                                                               TextTrimming="CharacterEllipsis"/>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </Grid>
+                                        </Border>
+
+                                        <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,8,0,0"/>
+                                        <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"/>
+                                        <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
+                                        <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
+                                    </Grid>
                                 </Border>
-
-                                <ToggleButton x:Name="MasterMuteButton" Grid.Row="3" Content="MUTE" Width="64"
-                                              Style="{StaticResource MuteButtonStyle}"
-                                              Click="MasterMuteButton_Click"/>
-
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,8,0,0"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
-                            </Grid>
-                        </Border>
-
-                        <!-- Group 1 strip -->
-                        <Border Grid.Column="2" Background="{StaticResource StripBrush}"
-                                BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="26,22">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="360"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-
-                                <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                                    <TextBlock Text="GROUP 1" Foreground="{StaticResource PrimaryTextBrush}"
-                                               FontFamily="{StaticResource DisplayFont}" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="BUS" Foreground="{StaticResource SecondaryTextBrush}"
-                                               FontFamily="{StaticResource DisplayFont}" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0"/>
-                                </StackPanel>
-
-                                <Grid Grid.Row="1" HorizontalAlignment="Center">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="22"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="56"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid Grid.Column="0" x:Name="Group1Ticks" Height="360" Margin="0,0,6,0"/>
-                                    <Grid x:Name="Group1Meter" Grid.Column="1" Width="11" Height="360" Margin="0,0,8,0"/>
-                                    <Border Grid.Column="2" Width="56" Height="360" Background="{StaticResource FaderHousingBrush}" CornerRadius="4">
-                                        <Slider x:Name="Group1Fader" Height="352" Width="34"
-                                                Style="{StaticResource VerticalFaderStyle}"
-                                                ValueChanged="Group1Fader_ValueChanged"/>
-                                    </Border>
-                                </Grid>
-
-                                <Border Grid.Row="2" Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
-                                        BorderThickness="1" CornerRadius="3" MinWidth="60" Margin="0,16,0,12" Padding="8,4">
-                                    <StackPanel HorizontalAlignment="Center">
-                                        <TextBlock x:Name="Group1DbText" Text="-3.0" Foreground="{StaticResource ReadoutTextBrush}"
-                                                   FontFamily="{StaticResource MonoFont}" FontSize="14" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="dB" Foreground="{StaticResource ReadoutTextBrush}"
-                                                   FontFamily="{StaticResource MonoFont}" FontSize="10" HorizontalAlignment="Center"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <ToggleButton x:Name="Group1MuteButton" Grid.Row="3" Content="MUTE" Width="96"
-                                              Style="{StaticResource MuteButtonStyle}"
-                                              Click="Group1MuteButton_Click"/>
-
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,8,0,0"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
-                            </Grid>
-                        </Border>
-
-                        <!-- Mic strip -->
-                        <Border Grid.Column="4" Background="{StaticResource StripBrush}"
-                                BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="26,22">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="360"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-
-                                <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                                    <TextBlock Text="MIC" Foreground="{StaticResource PrimaryTextBrush}"
-                                               FontFamily="{StaticResource DisplayFont}" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="INPUT" Foreground="{StaticResource SecondaryTextBrush}"
-                                               FontFamily="{StaticResource DisplayFont}" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0"/>
-                                </StackPanel>
-
-                                <Grid Grid.Row="1" HorizontalAlignment="Center">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="22"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="56"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid Grid.Column="0" x:Name="MicTicks" Height="360" Margin="0,0,6,0"/>
-                                    <Grid x:Name="MicMeter" Grid.Column="1" Width="11" Height="360" Margin="0,0,8,0"/>
-                                    <Border Grid.Column="2" Width="56" Height="360" Background="{StaticResource FaderHousingBrush}" CornerRadius="4">
-                                        <Slider x:Name="MicFader" Height="352" Width="34"
-                                                Style="{StaticResource VerticalFaderStyle}"
-                                                ValueChanged="MicFader_ValueChanged"/>
-                                    </Border>
-                                </Grid>
-
-                                <Border Grid.Row="2" Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
-                                        BorderThickness="1" CornerRadius="3" MinWidth="60" Margin="0,16,0,12" Padding="8,4">
-                                    <StackPanel HorizontalAlignment="Center">
-                                        <TextBlock x:Name="MicDbText" Text="-6.0" Foreground="{StaticResource ReadoutTextBrush}"
-                                                   FontFamily="{StaticResource MonoFont}" FontSize="14" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="dB" Foreground="{StaticResource ReadoutTextBrush}"
-                                                   FontFamily="{StaticResource MonoFont}" FontSize="10" HorizontalAlignment="Center"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <ToggleButton x:Name="MicMuteButton" Grid.Row="3" Content="MUTE" Width="96"
-                                              Style="{StaticResource MuteButtonStyle}"
-                                              Click="MicMuteButton_Click"/>
-
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,8,0,0"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
-                                <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
-                            </Grid>
-                        </Border>
-                    </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </Border>
             </Grid>
         </Border>

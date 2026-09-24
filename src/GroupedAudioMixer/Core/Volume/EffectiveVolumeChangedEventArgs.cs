@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Volume;
+namespace KineticAudio.Core.Volume;
 
 /// <summary>
 /// Raised whenever the state managed by <see cref="VolumeStateManager"/> changes in a way that

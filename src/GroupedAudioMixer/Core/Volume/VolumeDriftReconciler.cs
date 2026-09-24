@@ -1,6 +1,6 @@
-using GroupedAudioMixer.Core.Audio;
+using KineticAudio.Core.Audio;
 
-namespace GroupedAudioMixer.Core.Volume;
+namespace KineticAudio.Core.Volume;
 
 /// <summary>
 /// Poll-driven wiring for external volume drift reconciliation (binding decision: external
@@ -52,8 +52,9 @@ public sealed class VolumeDriftReconciler : IDisposable
     {
         foreach (var session in _sessionProvider.GetActiveSessions())
         {
-            var actualVolume = _sessionProvider.GetSessionVolume(session.SessionKey);
-            _volumeStateManager.ReconcileExternalVolume(session.SessionKey, actualVolume);
+            // The session can expire between GetActiveSessions and the read; skip it.
+            if (_sessionProvider.TryGetSessionVolume(session.SessionKey, out var actualVolume))
+                _volumeStateManager.ReconcileExternalVolume(session.SessionKey, actualVolume);
         }
     }
 

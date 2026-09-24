@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Audio;
+namespace KineticAudio.Core.Audio;
 
 /// <summary>
 /// A live Windows audio session, as reported by an <see cref="IAudioSessionProvider"/>.

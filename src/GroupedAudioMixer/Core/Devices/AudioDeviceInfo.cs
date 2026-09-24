@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Devices;
+namespace KineticAudio.Core.Devices;
 
 /// <summary>
 /// A playback or recording endpoint device, as reported by an <see cref="IAudioDeviceProvider"/>.

@@ -2,19 +2,16 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using GroupedAudioMixer.Core.Audio;
-using GroupedAudioMixer.Core.Devices;
-using GroupedAudioMixer.Core.Mapping;
-using GroupedAudioMixer.Core.Settings;
-using GroupedAudioMixer.Core.Volume;
+using KineticAudio.Core.Audio;
+using KineticAudio.Core.Devices;
+using KineticAudio.Core.Mapping;
+using KineticAudio.Core.Settings;
+using KineticAudio.Core.Volume;
 
-namespace GroupedAudioMixer;
+namespace KineticAudio;
 
 public partial class SettingsWindow : Window
 {
-    private static readonly HashSet<string> ProtectedGroupIds =
-        new(StringComparer.OrdinalIgnoreCase) { MainWindow.Group1Id, MainWindow.MicId };
-
     // Sentinel marking the divider's position within the playback reorder list.
     private sealed class DividerMarker { public static readonly DividerMarker Instance = new(); }
 
@@ -272,20 +269,6 @@ public partial class SettingsWindow : Window
         MappingsListBox.ItemsSource = mapped;
     }
 
-    private void AddGroup_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new TextInputDialog("New group name:") { Owner = this };
-        if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.InputText))
-            return;
-
-        var id = Guid.NewGuid().ToString("N");
-        _settings.Groups.Add(new GroupDefinition(id, dialog.InputText.Trim()));
-        _volumeState.AddGroup(new MixerGroup(id, dialog.InputText.Trim()));
-        _settingsStore.Save(_settings);
-
-        LoadGroupsTab();
-    }
-
     private void RenameGroup_Click(object sender, RoutedEventArgs e)
     {
         if (GroupsListBox.SelectedItem is not GroupDefinition group)
@@ -301,34 +284,6 @@ public partial class SettingsWindow : Window
             _settings.Groups[index] = group with { Name = newName };
 
         _volumeState.GetGroup(group.Id).Name = newName;
-        _settingsStore.Save(_settings);
-
-        LoadGroupsTab();
-    }
-
-    private void RemoveGroup_Click(object sender, RoutedEventArgs e)
-    {
-        if (GroupsListBox.SelectedItem is not GroupDefinition group)
-            return;
-
-        if (ProtectedGroupIds.Contains(group.Id))
-        {
-            MessageBox.Show(this, "The built-in mixer strips can't be removed from here.", "Settings",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        if (_settings.Groups.Count <= 1)
-        {
-            MessageBox.Show(this, "At least one group must remain.", "Settings",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        // Reassigns any live sessions in this group to the default group immediately, per the
-        // project's binding "group deletion reassigns live sessions" rule.
-        _volumeState.RemoveGroup(group.Id);
-        _settings.Groups.RemoveAll(g => g.Id == group.Id);
         _settingsStore.Save(_settings);
 
         LoadGroupsTab();

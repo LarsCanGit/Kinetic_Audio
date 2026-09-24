@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Mapping;
+namespace KineticAudio.Core.Mapping;
 
 /// <summary>
 /// Persistence seam for the executable-to-group map. Storage format/location (local file vs.

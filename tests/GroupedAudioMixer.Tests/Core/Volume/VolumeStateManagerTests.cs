@@ -1,6 +1,6 @@
-using GroupedAudioMixer.Core.Volume;
+using KineticAudio.Core.Volume;
 
-namespace GroupedAudioMixer.Tests.Core.Volume;
+namespace KineticAudio.Tests.Core.Volume;
 
 public class VolumeStateManagerTests
 {
@@ -181,5 +181,44 @@ public class VolumeStateManagerTests
 
         manager.SetGroupVolume("group-1", -0.5f);
         Assert.Equal(0f, manager.GetGroup("group-1").Volume, precision: 4);
+    }
+    [Fact]
+    public void ConcurrentSessionChurn_WhileMovingMainAndReading_DoesNotThrow()
+    {
+        // Regression: Core Audio raises session create/remove on background threads while the
+        // UI thread moves faders and reads the session table. Unsynchronized dictionary access
+        // threw "Collection was modified" or corrupted the table.
+        var manager = CreateManager("group-2");
+        var observedSessions = 0;
+        manager.EffectiveVolumeChanged += (_, e) => observedSessions += e.Sessions.Count;
+        const int iterations = 20_000;
+        var start = new ManualResetEventSlim();
+
+        var writers = Enumerable.Range(0, 4).Select(t => Task.Run(() =>
+        {
+            start.Wait();
+            for (var i = 0; i < iterations; i++)
+            {
+                var key = $"t{t}-s{i % 50}";
+                manager.AssignSessionToGroup(key, i % 2 == 0 ? "group-1" : "group-2");
+                if (i % 3 == 0) manager.RemoveSession(key);
+            }
+        })).ToList();
+
+        var ui = Task.Run(() =>
+        {
+            start.Wait();
+            for (var i = 0; i < iterations; i++)
+            {
+                manager.SetMainVolume((i % 100) / 100f);
+                manager.SetGroupVolume("group-2", (i % 10) / 10f);
+                _ = manager.GetGroupIdForSession($"t0-s{i % 50}");
+            }
+        });
+
+        start.Set();
+        var all = Task.WhenAll(writers.Append(ui));
+        Assert.True(all.Wait(TimeSpan.FromSeconds(30)), "Concurrent operations did not finish (deadlock?).");
+        Assert.Null(all.Exception);
     }
 }

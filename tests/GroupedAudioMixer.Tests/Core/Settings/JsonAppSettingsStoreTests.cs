@@ -1,8 +1,8 @@
 using System.Windows.Input;
-using GroupedAudioMixer.Core.Settings;
+using KineticAudio.Core.Settings;
 using Xunit;
 
-namespace GroupedAudioMixer.Tests.Core.Settings;
+namespace KineticAudio.Tests.Core.Settings;
 
 public class JsonAppSettingsStoreTests : IDisposable
 {
@@ -77,5 +77,15 @@ public class JsonAppSettingsStoreTests : IDisposable
         var result = DeviceOrderReconciler.Reconcile(stored, current);
 
         Assert.Equal(new[] { "still-here", "new-device" }, result);
+    }
+
+    [Fact]
+    public void DefaultGroups_HasFiveWellKnownGroups()
+    {
+        var settings = new AppSettings();
+
+        Assert.Equal(
+            new[] { "group1", "group2", "group3", "group4", "mic" },
+            settings.Groups.Select(g => g.Id));
     }
 }

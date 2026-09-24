@@ -1,9 +1,9 @@
 using System.Linq;
-using GroupedAudioMixer.Core.Audio;
-using GroupedAudioMixer.Core.Mapping;
-using GroupedAudioMixer.Core.Volume;
+using KineticAudio.Core.Audio;
+using KineticAudio.Core.Mapping;
+using KineticAudio.Core.Volume;
 
-namespace GroupedAudioMixer.Core.Session;
+namespace KineticAudio.Core.Session;
 
 /// <summary>
 /// Wires session-to-group assignment for both entry points D9 requires to funnel through the

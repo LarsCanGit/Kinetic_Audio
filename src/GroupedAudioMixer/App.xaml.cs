@@ -2,14 +2,14 @@
 using System.Data;
 using System.Windows;
 using System.Windows.Input;
-using GroupedAudioMixer.Core.Audio;
-using GroupedAudioMixer.Core.Devices;
-using GroupedAudioMixer.Core.Mapping;
-using GroupedAudioMixer.Core.Session;
-using GroupedAudioMixer.Core.Settings;
-using GroupedAudioMixer.Core.Volume;
+using KineticAudio.Core.Audio;
+using KineticAudio.Core.Devices;
+using KineticAudio.Core.Mapping;
+using KineticAudio.Core.Session;
+using KineticAudio.Core.Settings;
+using KineticAudio.Core.Volume;
 
-namespace GroupedAudioMixer;
+namespace KineticAudio;
 
 /// <summary>
 /// Interaction logic for App.xaml
@@ -63,11 +63,9 @@ public partial class App : Application
         TryRegisterHotkey(_settings.CycleHotkeyModifiers, _settings.CycleHotkeyKey);
 
         if (_settings.Groups.Count == 0)
-            _settings.Groups.Add(new GroupDefinition(GroupedAudioMixer.MainWindow.Group1Id, "Group 1"));
+            _settings.Groups.Add(new GroupDefinition(WellKnownGroupIds.Group1Id, "Group 1"));
 
-        var defaultGroupId = _settings.Groups.Any(g => g.Id == GroupedAudioMixer.MainWindow.Group1Id)
-            ? GroupedAudioMixer.MainWindow.Group1Id
-            : _settings.Groups[0].Id;
+        var defaultGroupId = DefaultGroupResolver.ResolveDefaultGroupId(_settings.Groups);
 
         _volumeState = new VolumeStateManager(
             _settings.Groups.Select(g => new MixerGroup(g.Id, g.Name)),
@@ -82,7 +80,7 @@ public partial class App : Application
         if (_settings.RunAtStartup)
             StartupRegistration.SetEnabled(true, Environment.ProcessPath ?? string.Empty);
 
-        var mainWindow = new GroupedAudioMixer.MainWindow(_volumeState);
+        var mainWindow = new KineticAudio.MainWindow(_volumeState, _sessionProvider);
         MainWindow = mainWindow;
         mainWindow.Show();
     }

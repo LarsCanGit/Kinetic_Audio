@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Audio;
+namespace KineticAudio.Core.Audio;
 
 public sealed class AudioSessionEventArgs(AudioSessionInfo session) : EventArgs
 {

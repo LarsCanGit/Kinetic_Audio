@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json;
 
-namespace GroupedAudioMixer.Core.Mapping;
+namespace KineticAudio.Core.Mapping;
 
 /// <summary>Persists the executable-&gt;group map to a JSON file. Missing or malformed file yields
 /// an empty map rather than crashing startup.</summary>
@@ -15,7 +15,7 @@ public sealed class JsonExecutableGroupMapStore : IExecutableGroupMapStore
     }
 
     public JsonExecutableGroupMapStore()
-        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GroupedAudioMixer", "executable-group-map.json"))
+        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "KineticAudio", "executable-group-map.json"))
     {
     }
 

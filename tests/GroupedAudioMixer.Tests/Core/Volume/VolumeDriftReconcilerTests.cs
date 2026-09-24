@@ -1,8 +1,8 @@
-using GroupedAudioMixer.Core.Audio;
-using GroupedAudioMixer.Core.Volume;
-using GroupedAudioMixer.Tests.Core.Audio;
+using KineticAudio.Core.Audio;
+using KineticAudio.Core.Volume;
+using KineticAudio.Tests.Core.Audio;
 
-namespace GroupedAudioMixer.Tests.Core.Volume;
+namespace KineticAudio.Tests.Core.Volume;
 
 public class VolumeDriftReconcilerTests
 {
@@ -87,5 +87,25 @@ public class VolumeDriftReconcilerTests
         reconciler.Start();
         reconciler.Stop();
         reconciler.Dispose();
+    }
+    [Fact]
+    public void PollOnce_SessionDiesMidPoll_DoesNotThrowAndReconcilesOthers()
+    {
+        // Regression: PollOnce runs on a timer thread, where an unhandled exception kills the
+        // process. A session that expires between GetActiveSessions and the volume read used to
+        // throw out of PollOnce.
+        var provider = new FakeAudioSessionProvider();
+        var manager = CreateManager("group-2");
+        manager.AssignSessionToGroup("session-1", "group-1");
+        manager.AssignSessionToGroup("session-2", "group-2");
+        provider.RaiseSessionCreated(new AudioSessionInfo("session-1", @"C:\Apps\discord.exe", "Discord"));
+        provider.RaiseSessionCreated(new AudioSessionInfo("session-2", @"C:\Apps\spotify.exe", "Spotify"));
+        provider.SetSessionVolume("session-2", 0.4f);
+        provider.KillSession("session-1");
+        var reconciler = new VolumeDriftReconciler(provider, manager);
+
+        reconciler.PollOnce();
+
+        Assert.Equal(0.4f, manager.GetGroup("group-2").Volume, 3);
     }
 }

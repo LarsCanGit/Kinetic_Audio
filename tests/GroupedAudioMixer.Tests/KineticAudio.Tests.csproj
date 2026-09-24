@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\GroupedAudioMixer\GroupedAudioMixer.csproj" />
+    <ProjectReference Include="..\..\src\GroupedAudioMixer\KineticAudio.csproj" />
   </ItemGroup>
 
 </Project>

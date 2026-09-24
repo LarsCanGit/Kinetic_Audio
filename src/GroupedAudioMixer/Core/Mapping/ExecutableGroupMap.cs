@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Mapping;
+namespace KineticAudio.Core.Mapping;
 
 /// <summary>
 /// Durable executable path -> group id map used to auto-link a newly created audio session to

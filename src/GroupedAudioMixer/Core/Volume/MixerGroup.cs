@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Volume;
+namespace KineticAudio.Core.Volume;
 
 /// <summary>
 /// A user-defined volume group (e.g. "Game", "Chat", "Music"). Owns its own fader position

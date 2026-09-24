@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
-using GroupedAudioMixer.Core.Audio.Interop;
+using KineticAudio.Core.Audio.Interop;
 
-namespace GroupedAudioMixer.Core.Audio;
+namespace KineticAudio.Core.Audio;
 
 /// <summary>
 /// The real <see cref="IAudioSessionProvider"/> implementation: a thin COM-interop adapter over
@@ -63,25 +63,45 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
         }
     }
 
-    public float GetSessionVolume(string sessionKey)
+    public bool TryGetSessionVolume(string sessionKey, out float volume)
     {
-        var entry = GetEntry(sessionKey);
-        ThrowIfFailed(entry.Volume.GetMasterVolume(out var level));
-        return level;
+        volume = 0f;
+        if (!TryGetEntry(sessionKey, out var entry))
+            return false;
+
+        try
+        {
+            return entry.Volume.GetMasterVolume(out volume) >= 0;
+        }
+        catch (Exception ex) when (ex is COMException or InvalidComObjectException)
+        {
+            // Session's process exited or its device was disconnected before the removal
+            // notification arrived.
+            return false;
+        }
     }
 
-    public void SetSessionVolume(string sessionKey, float volume)
+    public bool TrySetSessionVolume(string sessionKey, float volume)
     {
-        var entry = GetEntry(sessionKey);
-        var eventContext = Guid.Empty;
-        ThrowIfFailed(entry.Volume.SetMasterVolume(volume, ref eventContext));
+        if (!TryGetEntry(sessionKey, out var entry))
+            return false;
+
+        try
+        {
+            var eventContext = Guid.Empty;
+            return entry.Volume.SetMasterVolume(volume, ref eventContext) >= 0;
+        }
+        catch (Exception ex) when (ex is COMException or InvalidComObjectException)
+        {
+            return false;
+        }
     }
 
-    private SessionEntry GetEntry(string sessionKey)
+    private bool TryGetEntry(string sessionKey, out SessionEntry entry)
     {
         lock (_lock)
         {
-            return _sessions[sessionKey];
+            return _sessions.TryGetValue(sessionKey, out entry!);
         }
     }
 

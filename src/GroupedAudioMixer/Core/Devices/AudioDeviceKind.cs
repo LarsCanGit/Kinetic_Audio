@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Devices;
+namespace KineticAudio.Core.Devices;
 
 /// <summary>
 /// Which endpoint stack a device belongs to. Playback and Recording each get their own default

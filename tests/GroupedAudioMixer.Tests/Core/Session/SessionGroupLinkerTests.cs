@@ -1,11 +1,11 @@
-using GroupedAudioMixer.Core.Audio;
-using GroupedAudioMixer.Core.Mapping;
-using GroupedAudioMixer.Core.Session;
-using GroupedAudioMixer.Core.Volume;
-using GroupedAudioMixer.Tests.Core.Audio;
-using GroupedAudioMixer.Tests.Core.Mapping;
+using KineticAudio.Core.Audio;
+using KineticAudio.Core.Mapping;
+using KineticAudio.Core.Session;
+using KineticAudio.Core.Volume;
+using KineticAudio.Tests.Core.Audio;
+using KineticAudio.Tests.Core.Mapping;
 
-namespace GroupedAudioMixer.Tests.Core.Session;
+namespace KineticAudio.Tests.Core.Session;
 
 public class SessionGroupLinkerTests
 {

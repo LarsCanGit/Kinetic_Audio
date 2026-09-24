@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
-namespace GroupedAudioMixer;
+namespace KineticAudio;
 
 /// <summary>
 /// Bottom-center, non-activating pop-up that briefly names the device the cycle-switch hotkey just

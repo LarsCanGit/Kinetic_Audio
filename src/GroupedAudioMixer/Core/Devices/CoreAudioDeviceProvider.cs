@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using GroupedAudioMixer.Core.Audio.Interop;
+using KineticAudio.Core.Audio.Interop;
 
-namespace GroupedAudioMixer.Core.Devices;
+namespace KineticAudio.Core.Devices;
 
 /// <summary>
 /// The real <see cref="IAudioDeviceProvider"/> implementation: a thin COM-interop adapter over

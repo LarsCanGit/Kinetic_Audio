@@ -1,6 +1,6 @@
 using System.Windows.Input;
 
-namespace GroupedAudioMixer.Core.Settings;
+namespace KineticAudio.Core.Settings;
 
 /// <summary>Persisted user configuration: device order/hotkey-swap membership, cycle hotkey,
 /// general options, and mixer groups.</summary>
@@ -19,7 +19,10 @@ public sealed class AppSettings
 
     public List<GroupDefinition> Groups { get; set; } = new()
     {
-        new GroupDefinition("group1", "Group 1"),
-        new GroupDefinition("mic", "Mic"),
+        new GroupDefinition(WellKnownGroupIds.Group1Id, "Group 1"),
+        new GroupDefinition(WellKnownGroupIds.Group2Id, "Group 2"),
+        new GroupDefinition(WellKnownGroupIds.Group3Id, "Group 3"),
+        new GroupDefinition(WellKnownGroupIds.Group4Id, "Group 4"),
+        new GroupDefinition(WellKnownGroupIds.MicId, "Mic"),
     };
 }

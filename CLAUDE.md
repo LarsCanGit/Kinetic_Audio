@@ -1,14 +1,14 @@
-# Grouped Audio Mixer
+# Kinetic Audio
 
 Windows desktop app: grouped per-app volume mixing (Sonar's model) + favorite-device switching (SoundSwitch's model), built on Windows Core Audio APIs. No drivers, no virtual devices in Phase 1.
 
-Full product/architecture spec: [Grouped Audio Mixer - Product Design Doc.md](Grouped%20Audio%20Mixer%20-%20Product%20Design%20Doc.md), including the `## GSTACK REVIEW REPORT` section at the bottom — that section is binding on implementation, not just advisory notes.
+Full product/architecture spec: [Kinetic Audio - Product Design Doc.md](Kinetic%20Audio%20-%20Product%20Design%20Doc.md), including the `## GSTACK REVIEW REPORT` section at the bottom — that section is binding on implementation, not just advisory notes.
 
 ## Stack
 
-- .NET 9, WPF (`src/GroupedAudioMixer`)
-- xUnit (`tests/GroupedAudioMixer.Tests`)
-- Solution: `GroupedAudioMixer.sln`
+- .NET 9, WPF (`src/GroupedAudioMixer` — folder not yet renamed to match the project; a build-server lock blocked it, rename when convenient)
+- xUnit (`tests/GroupedAudioMixer.Tests` — same pending rename)
+- Solution: `KineticAudio.sln`
 
 ## Architecture decisions (binding — see GSTACK REVIEW REPORT for full rationale)
 

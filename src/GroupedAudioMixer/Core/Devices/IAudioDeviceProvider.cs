@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Devices;
+namespace KineticAudio.Core.Devices;
 
 /// <summary>
 /// Seam over Windows default-device enumeration and switching (<c>IMMDeviceEnumerator</c> for

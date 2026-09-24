@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json;
 
-namespace GroupedAudioMixer.Core.Settings;
+namespace KineticAudio.Core.Settings;
 
 /// <summary>Persists <see cref="AppSettings"/> to a JSON file. Missing file on first run yields
 /// defaults; a malformed file is treated the same way rather than crashing startup.</summary>
@@ -15,7 +15,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
     }
 
     public JsonAppSettingsStore()
-        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GroupedAudioMixer", "settings.json"))
+        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "KineticAudio", "settings.json"))
     {
     }
 

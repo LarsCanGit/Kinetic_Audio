@@ -1,6 +1,6 @@
-using GroupedAudioMixer.Core.Mapping;
+using KineticAudio.Core.Mapping;
 
-namespace GroupedAudioMixer.Tests.Core.Mapping;
+namespace KineticAudio.Tests.Core.Mapping;
 
 public class ExecutableGroupMapTests
 {

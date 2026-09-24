@@ -1,4 +1,4 @@
-namespace GroupedAudioMixer.Core.Volume;
+namespace KineticAudio.Core.Volume;
 
 /// <summary>
 /// Owns group volume, Main volume, and mute state, and computes effective per-session volume
@@ -9,11 +9,18 @@ namespace GroupedAudioMixer.Core.Volume;
 /// Phase 3 mix engine consume this same module rather than each reimplementing volume math.
 /// Consumers subscribe to <see cref="EffectiveVolumeChanged"/> to learn which sessions need a
 /// fresh volume written after any mutation.
+///
+/// Thread-safe: Core Audio raises session create/remove on background threads while the UI
+/// thread moves faders, so every member takes <see cref="_lock"/>. <see cref="EffectiveVolumeChanged"/>
+/// is raised while the lock is held, so subscribers see changes in the order they were made and
+/// never write a stale volume over a newer one. Handlers must therefore not block on another
+/// thread that could be waiting for this lock (use <c>Dispatcher.BeginInvoke</c>, not <c>Invoke</c>).
 /// </summary>
 public sealed class VolumeStateManager
 {
     private const float ReconcileEpsilon = 0.005f;
 
+    private readonly object _lock = new();
     private readonly Dictionary<string, MixerGroup> _groups;
     private readonly Dictionary<string, string> _sessionToGroup = new();
     private string _defaultGroupId;
@@ -33,13 +40,26 @@ public sealed class VolumeStateManager
         _defaultGroupId = defaultGroupId;
     }
 
-    public IReadOnlyCollection<MixerGroup> Groups => _groups.Values;
+    /// <summary>A snapshot of the groups, safe to enumerate while other threads mutate state.</summary>
+    public IReadOnlyCollection<MixerGroup> Groups
+    {
+        get { lock (_lock) return _groups.Values.ToList(); }
+    }
 
-    public string DefaultGroupId => _defaultGroupId;
+    public string DefaultGroupId
+    {
+        get { lock (_lock) return _defaultGroupId; }
+    }
 
-    public MixerGroup GetGroup(string groupId) => _groups[groupId];
+    public MixerGroup GetGroup(string groupId)
+    {
+        lock (_lock) return _groups[groupId];
+    }
 
-    public void AddGroup(MixerGroup group) => _groups.Add(group.Id, group);
+    public void AddGroup(MixerGroup group)
+    {
+        lock (_lock) _groups.Add(group.Id, group);
+    }
 
     /// <summary>
     /// Removes a group, immediately reassigning any live sessions linked to it to the default
@@ -49,26 +69,29 @@ public sealed class VolumeStateManager
     /// </summary>
     public IReadOnlyList<string> RemoveGroup(string groupId)
     {
-        if (!_groups.ContainsKey(groupId))
-            throw new KeyNotFoundException($"Group '{groupId}' does not exist.");
-        if (_groups.Count == 1)
-            throw new InvalidOperationException("Cannot remove the last remaining group.");
-
-        _groups.Remove(groupId);
-
-        if (_defaultGroupId == groupId)
-            _defaultGroupId = _groups.Keys.First();
-
-        var reassigned = new List<string>();
-        foreach (var (sessionKey, sessionGroupId) in _sessionToGroup)
+        lock (_lock)
         {
-            if (sessionGroupId != groupId) continue;
-            _sessionToGroup[sessionKey] = _defaultGroupId;
-            reassigned.Add(sessionKey);
-        }
+            if (!_groups.ContainsKey(groupId))
+                throw new KeyNotFoundException($"Group '{groupId}' does not exist.");
+            if (_groups.Count == 1)
+                throw new InvalidOperationException("Cannot remove the last remaining group.");
 
-        RaiseEffectiveVolumeChanged(reassigned);
-        return reassigned;
+            _groups.Remove(groupId);
+
+            if (_defaultGroupId == groupId)
+                _defaultGroupId = _groups.Keys.First();
+
+            var reassigned = new List<string>();
+            foreach (var (sessionKey, sessionGroupId) in _sessionToGroup)
+            {
+                if (sessionGroupId != groupId) continue;
+                _sessionToGroup[sessionKey] = _defaultGroupId;
+                reassigned.Add(sessionKey);
+            }
+
+            RaiseEffectiveVolumeChanged(reassigned);
+            return reassigned;
+        }
     }
 
     /// <summary>
@@ -77,61 +100,90 @@ public sealed class VolumeStateManager
     /// </summary>
     public void AssignSessionToGroup(string sessionKey, string groupId)
     {
-        var resolvedGroupId = _groups.ContainsKey(groupId) ? groupId : _defaultGroupId;
-        _sessionToGroup[sessionKey] = resolvedGroupId;
-        RaiseEffectiveVolumeChanged([sessionKey]);
+        lock (_lock)
+        {
+            var resolvedGroupId = _groups.ContainsKey(groupId) ? groupId : _defaultGroupId;
+            _sessionToGroup[sessionKey] = resolvedGroupId;
+            RaiseEffectiveVolumeChanged([sessionKey]);
+        }
     }
 
-    public void RemoveSession(string sessionKey) => _sessionToGroup.Remove(sessionKey);
+    public void RemoveSession(string sessionKey)
+    {
+        lock (_lock) _sessionToGroup.Remove(sessionKey);
+    }
 
-    public string GetGroupIdForSession(string sessionKey) =>
-        _sessionToGroup.TryGetValue(sessionKey, out var groupId) ? groupId : _defaultGroupId;
+    public string GetGroupIdForSession(string sessionKey)
+    {
+        lock (_lock) return _sessionToGroup.TryGetValue(sessionKey, out var groupId) ? groupId : _defaultGroupId;
+    }
 
     public void SetGroupVolume(string groupId, float volume)
     {
-        var group = _groups[groupId];
-        group.Volume = Math.Clamp(volume, 0f, 1f);
-        RaiseEffectiveVolumeChanged(GetSessionsInGroup(groupId));
+        lock (_lock)
+        {
+            var group = _groups[groupId];
+            group.Volume = Math.Clamp(volume, 0f, 1f);
+            RaiseEffectiveVolumeChanged(GetSessionsInGroup(groupId));
+        }
     }
 
     public void MuteGroup(string groupId)
     {
-        _groups[groupId].IsMuted = true;
-        RaiseEffectiveVolumeChanged(GetSessionsInGroup(groupId));
+        lock (_lock)
+        {
+            _groups[groupId].IsMuted = true;
+            RaiseEffectiveVolumeChanged(GetSessionsInGroup(groupId));
+        }
     }
 
     /// <summary>Restores the group's exact pre-mute volume (Volume was never touched by mute).</summary>
     public void UnmuteGroup(string groupId)
     {
-        _groups[groupId].IsMuted = false;
-        RaiseEffectiveVolumeChanged(GetSessionsInGroup(groupId));
+        lock (_lock)
+        {
+            _groups[groupId].IsMuted = false;
+            RaiseEffectiveVolumeChanged(GetSessionsInGroup(groupId));
+        }
     }
 
     public void SetMainVolume(float volume)
     {
-        Main.Volume = Math.Clamp(volume, 0f, 1f);
-        RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+        lock (_lock)
+        {
+            Main.Volume = Math.Clamp(volume, 0f, 1f);
+            RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+        }
     }
 
     public void MuteMain()
     {
-        Main.IsMuted = true;
-        RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+        lock (_lock)
+        {
+            Main.IsMuted = true;
+            RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+        }
     }
 
     public void UnmuteMain()
     {
-        Main.IsMuted = false;
-        RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+        lock (_lock)
+        {
+            Main.IsMuted = false;
+            RaiseEffectiveVolumeChanged(_sessionToGroup.Keys.ToList());
+        }
     }
 
     /// <summary>Effective volume to write to Core Audio for this session: group.Volume * main.Volume.</summary>
     public float GetEffectiveVolume(string sessionKey)
     {
-        var group = _groups[GetGroupIdForSession(sessionKey)];
-        var groupFactor = group.IsMuted ? 0f : group.Volume;
-        var mainFactor = Main.IsMuted ? 0f : Main.Volume;
-        return groupFactor * mainFactor;
+        lock (_lock)
+        {
+            var group = _groups[GetGroupIdForSession(sessionKey)];
+            var groupFactor = group.IsMuted ? 0f : group.Volume;
+            var mainFactor = Main.IsMuted ? 0f : Main.Volume;
+            return groupFactor * mainFactor;
+        }
     }
 
     /// <summary>
@@ -144,22 +196,25 @@ public sealed class VolumeStateManager
     /// <returns>true if the group's stored volume was updated.</returns>
     public bool ReconcileExternalVolume(string sessionKey, float actualVolume)
     {
-        var expected = GetEffectiveVolume(sessionKey);
-        if (MathF.Abs(actualVolume - expected) <= ReconcileEpsilon)
-            return false;
+        lock (_lock)
+        {
+            var expected = GetEffectiveVolume(sessionKey);
+            if (MathF.Abs(actualVolume - expected) <= ReconcileEpsilon)
+                return false;
 
-        var groupId = GetGroupIdForSession(sessionKey);
-        var group = _groups[groupId];
-        var mainFactor = Main.IsMuted ? 0f : Main.Volume;
+            var groupId = GetGroupIdForSession(sessionKey);
+            var group = _groups[groupId];
+            var mainFactor = Main.IsMuted ? 0f : Main.Volume;
 
-        // Can't reliably back-calculate a group fader from a volume that's forced to zero
-        // by mute state on either channel.
-        if (mainFactor <= ReconcileEpsilon || group.IsMuted)
-            return false;
+            // Can't reliably back-calculate a group fader from a volume that's forced to zero
+            // by mute state on either channel.
+            if (mainFactor <= ReconcileEpsilon || group.IsMuted)
+                return false;
 
-        group.Volume = Math.Clamp(actualVolume / mainFactor, 0f, 1f);
-        RaiseEffectiveVolumeChanged(GetSessionsInGroup(groupId));
-        return true;
+            group.Volume = Math.Clamp(actualVolume / mainFactor, 0f, 1f);
+            RaiseEffectiveVolumeChanged(GetSessionsInGroup(groupId));
+            return true;
+        }
     }
 
     private List<string> GetSessionsInGroup(string groupId) =>

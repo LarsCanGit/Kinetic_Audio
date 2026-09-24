@@ -1,6 +1,6 @@
-using GroupedAudioMixer.Core.Mapping;
+using KineticAudio.Core.Mapping;
 
-namespace GroupedAudioMixer.Tests.Core.Mapping;
+namespace KineticAudio.Tests.Core.Mapping;
 
 /// <summary>In-memory <see cref="IExecutableGroupMapStore"/>, standing in for whatever real
 /// storage format/location gets decided (see CLAUDE.md "Open / not yet decided").</summary>

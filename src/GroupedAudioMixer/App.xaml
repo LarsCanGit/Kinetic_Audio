@@ -1,7 +1,7 @@
-﻿<Application x:Class="GroupedAudioMixer.App"
+﻿<Application x:Class="KineticAudio.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:GroupedAudioMixer"
+             xmlns:local="clr-namespace:KineticAudio"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
          
