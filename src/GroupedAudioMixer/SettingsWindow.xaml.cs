@@ -24,7 +24,8 @@ public partial class SettingsWindow : Window
     private readonly ExecutableGroupMap _executableGroupMap;
 
     private List<object> _playbackItems = new();
-    private List<AudioDeviceInfo> _recordingItems = new();
+    // List<object>, like _playbackItems: WireDrag reorders this exact list in place (#11).
+    private List<object> _recordingItems = new();
     private HashSet<string> _presentPlaybackIds = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _presentRecordingIds = new(StringComparer.OrdinalIgnoreCase);
     private object? _dragSource;
@@ -79,7 +80,7 @@ public partial class SettingsWindow : Window
         _presentRecordingIds = new HashSet<string>(recordingById.Keys, StringComparer.OrdinalIgnoreCase);
         _recordingItems = _settings.RecordingDeviceOrder
             .Where(recordingById.ContainsKey)
-            .Select(id => recordingById[id])
+            .Select(id => (object)recordingById[id])
             .ToList();
 
         RenderRecordingList();
@@ -102,11 +103,11 @@ public partial class SettingsWindow : Window
     private void RenderRecordingList()
     {
         RecordingList.Children.Clear();
-        foreach (var device in _recordingItems)
+        foreach (var device in _recordingItems.Cast<AudioDeviceInfo>())
         {
             var tile = BuildDeviceTile(device, RecordingList);
             tile.Tag = device;
-            WireDrag(tile, RecordingList, _recordingItems.Cast<object>().ToList(), OnRecordingReordered);
+            WireDrag(tile, RecordingList, _recordingItems, OnRecordingReordered);
             RecordingList.Children.Add(tile);
         }
     }
@@ -181,7 +182,7 @@ public partial class SettingsWindow : Window
         RenderRecordingList();
         (_settings.RecordingDeviceOrder, _) = DeviceOrderReconciler.MergeVisibleOrder(
             _settings.RecordingDeviceOrder, 0, _presentRecordingIds,
-            _recordingItems.Select(d => d.DeviceId).ToList(), 0);
+            _recordingItems.Cast<AudioDeviceInfo>().Select(d => d.DeviceId).ToList(), 0);
         _settingsStore.Save(_settings);
     }
 
