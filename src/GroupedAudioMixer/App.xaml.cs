@@ -25,6 +25,7 @@ public partial class App : Application
     private CoreAudioSessionProvider? _sessionProvider;
     private SessionGroupLinker? _sessionGroupLinker;
     private SessionVolumeWriter? _sessionVolumeWriter;
+    private VolumeDriftReconciler? _volumeDriftReconciler;
 
     private AppSettings? _settings;
     private IAppSettingsStore? _settingsStore;
@@ -76,6 +77,8 @@ public partial class App : Application
         _sessionProvider = new CoreAudioSessionProvider();
         _sessionGroupLinker = new SessionGroupLinker(_sessionProvider, _executableGroupMap, _volumeState);
         _sessionVolumeWriter = new SessionVolumeWriter(_sessionProvider, _volumeState);
+        _volumeDriftReconciler = new VolumeDriftReconciler(_sessionProvider, _volumeState);
+        _volumeDriftReconciler.Start();
 
         if (_settings.RunAtStartup)
             StartupRegistration.SetEnabled(true, Environment.ProcessPath ?? string.Empty);
@@ -152,6 +155,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _deviceSwitchOsd?.Close();
+        _volumeDriftReconciler?.Dispose();
         _sessionVolumeWriter?.Dispose();
         _sessionGroupLinker?.Dispose();
         _sessionProvider?.Dispose();

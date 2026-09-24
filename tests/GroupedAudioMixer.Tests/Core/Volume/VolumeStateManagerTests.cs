@@ -189,4 +189,16 @@ public class VolumeStateManagerTests
         Assert.True(finished, "Concurrent operations did not finish (deadlock?).");
         await all; // Rethrows any exception from the worker tasks.
     }
+
+    [Fact]
+    public void ReconcileExternalVolume_UnassignedSession_IsIgnored()
+    {
+        var manager = CreateManager();
+        manager.SetGroupVolume("group-1", 0.5f);
+
+        var changed = manager.ReconcileExternalVolume("never-assigned", 1.0f);
+
+        Assert.False(changed);
+        Assert.Equal(0.5f, manager.GetGroup("group-1").Volume, 3);
+    }
 }

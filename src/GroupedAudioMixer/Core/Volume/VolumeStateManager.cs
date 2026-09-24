@@ -24,6 +24,7 @@ public sealed class VolumeStateManager
     private readonly Dictionary<string, MixerGroup> _groups;
     private readonly Dictionary<string, string> _sessionToGroup = new();
     private readonly string _defaultGroupId;
+    private long _version;
 
     public MainChannel Main { get; } = new();
 
@@ -44,6 +45,17 @@ public sealed class VolumeStateManager
     public IReadOnlyCollection<MixerGroup> Groups
     {
         get { lock (_lock) return _groups.Values.ToList(); }
+    }
+
+    /// <summary>
+    /// Increments on every change that affects effective volumes. A caller that reads a session's
+    /// actual volume outside the lock captures this first and passes it to
+    /// <see cref="ReconcileExternalVolume"/>, so a reading taken before a fader move isn't mistaken
+    /// for drift afterwards.
+    /// </summary>
+    public long Version
+    {
+        get { lock (_lock) return _version; }
     }
 
     public string DefaultGroupId
@@ -155,11 +167,22 @@ public sealed class VolumeStateManager
     /// sharing that group is notified so its own written volume stays in sync (binding decision:
     /// external drift gets reconciled, not ignored or silently overwritten).
     /// </summary>
+    /// <param name="observedAtVersion">The <see cref="Version"/> captured before
+    /// <paramref name="actualVolume"/> was read. If state has changed since, the reading is stale
+    /// and is ignored; the next poll will see the freshly written volume.</param>
     /// <returns>true if the group's stored volume was updated.</returns>
-    public bool ReconcileExternalVolume(string sessionKey, float actualVolume)
+    public bool ReconcileExternalVolume(string sessionKey, float actualVolume, long? observedAtVersion = null)
     {
         lock (_lock)
         {
+            if (observedAtVersion is { } observed && observed != _version)
+                return false;
+
+            // A session the provider lists but that isn't linked yet still carries Windows'
+            // persisted volume, not ours; treating it as drift would move the default group.
+            if (!_sessionToGroup.ContainsKey(sessionKey))
+                return false;
+
             var expected = GetEffectiveVolume(sessionKey);
             if (MathF.Abs(actualVolume - expected) <= ReconcileEpsilon)
                 return false;
@@ -184,6 +207,7 @@ public sealed class VolumeStateManager
 
     private void RaiseEffectiveVolumeChanged(IReadOnlyList<string> sessionKeys)
     {
+        _version++;
         if (sessionKeys.Count == 0) return;
 
         var payload = sessionKeys.Select(key => (key, GetEffectiveVolume(key))).ToList();

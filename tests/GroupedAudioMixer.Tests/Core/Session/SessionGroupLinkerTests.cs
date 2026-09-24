@@ -164,4 +164,26 @@ public class SessionGroupLinkerTests
 
         Assert.Equal("group-2", manager.GetGroupIdForSession("session-1"));
     }
+
+    [Fact]
+    public void SessionReappearingOnNewDevice_GetsCurrentEffectiveVolume()
+    {
+        // Default-device switch: the app's session on the old endpoint goes away and a new one
+        // (new instance id) appears on the new endpoint carrying Windows' persisted volume. It must
+        // pick up the current group x main volume without the user touching a fader.
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        map.SetMapping(@"C:\Apps\discord.exe", "group-2");
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        using var writer = new SessionVolumeWriter(provider, manager);
+        provider.RaiseSessionCreated(new AudioSessionInfo("deviceA|discord", @"C:\Apps\discord.exe", "Discord"));
+        manager.SetGroupVolume("group-2", 0.5f);
+        manager.SetMainVolume(0.5f);
+
+        provider.RaiseSessionRemoved("deviceA|discord");
+        provider.RaiseSessionCreated(new AudioSessionInfo("deviceB|discord", @"C:\Apps\discord.exe", "Discord"), initialVolume: 1.0f);
+
+        Assert.Equal(0.25f, provider.GetSessionVolume("deviceB|discord"), 3);
+    }
 }

@@ -57,10 +57,32 @@ internal interface IMMDeviceEnumerator
     int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
 
     [PreserveSig]
-    int RegisterEndpointNotificationCallback(IntPtr client);
+    int RegisterEndpointNotificationCallback(IMMNotificationClient client);
 
     [PreserveSig]
-    int UnregisterEndpointNotificationCallback(IntPtr client);
+    int UnregisterEndpointNotificationCallback(IMMNotificationClient client);
+}
+
+[ComImport]
+[Guid("7991EEC9-7E89-4D85-8390-6C703CEC60C0")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IMMNotificationClient
+{
+    [PreserveSig]
+    int OnDeviceStateChanged([MarshalAs(UnmanagedType.LPWStr)] string deviceId, uint newState);
+
+    [PreserveSig]
+    int OnDeviceAdded([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
+    [PreserveSig]
+    int OnDeviceRemoved([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
+    /// <remarks><paramref name="defaultDeviceId"/> is null when no device is available for the role.</remarks>
+    [PreserveSig]
+    int OnDefaultDeviceChanged(EDataFlow flow, ERole role, [MarshalAs(UnmanagedType.LPWStr)] string? defaultDeviceId);
+
+    [PreserveSig]
+    int OnPropertyValueChanged([MarshalAs(UnmanagedType.LPWStr)] string deviceId, PROPERTYKEY key);
 }
 
 [StructLayout(LayoutKind.Sequential)]

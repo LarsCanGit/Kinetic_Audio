@@ -25,6 +25,8 @@ public partial class SettingsWindow : Window
 
     private List<object> _playbackItems = new();
     private List<AudioDeviceInfo> _recordingItems = new();
+    private HashSet<string> _presentPlaybackIds = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _presentRecordingIds = new(StringComparer.OrdinalIgnoreCase);
     private object? _dragSource;
 
     public SettingsWindow(App app)
@@ -58,19 +60,23 @@ public partial class SettingsWindow : Window
     {
         var playbackDevices = _deviceProvider.GetDevices(AudioDeviceKind.Playback);
         var byId = playbackDevices.ToDictionary(d => d.DeviceId, StringComparer.OrdinalIgnoreCase);
+        _presentPlaybackIds = new HashSet<string>(byId.Keys, StringComparer.OrdinalIgnoreCase);
 
         _playbackItems = new List<object>();
         foreach (var id in _settings.PlaybackDeviceOrder)
             if (byId.TryGetValue(id, out var device))
                 _playbackItems.Add(device);
 
-        var dividerIndex = Math.Clamp(_settings.PlaybackSwitchCount, 0, _playbackItems.Count);
+        // Unplugged devices aren't listed but keep their saved slot, so count only present ones.
+        var dividerIndex = DeviceOrderReconciler.VisibleSwitchCount(
+            _settings.PlaybackDeviceOrder, _settings.PlaybackSwitchCount, _presentPlaybackIds);
         _playbackItems.Insert(dividerIndex, DividerMarker.Instance);
 
         RenderPlaybackList();
 
         var recordingDevices = _deviceProvider.GetDevices(AudioDeviceKind.Recording);
         var recordingById = recordingDevices.ToDictionary(d => d.DeviceId, StringComparer.OrdinalIgnoreCase);
+        _presentRecordingIds = new HashSet<string>(recordingById.Keys, StringComparer.OrdinalIgnoreCase);
         _recordingItems = _settings.RecordingDeviceOrder
             .Where(recordingById.ContainsKey)
             .Select(id => recordingById[id])
@@ -160,17 +166,22 @@ public partial class SettingsWindow : Window
         // Devices before the divider marker in the combined list are the ones above the line.
         var aboveCount = _playbackItems.Take(dividerIndex).OfType<AudioDeviceInfo>().Count();
 
-        _settings.PlaybackDeviceOrder = deviceIds;
-        _settings.PlaybackSwitchCount = aboveCount;
+        // Merge back into the full order so unplugged devices keep their saved position (#10).
+        (_settings.PlaybackDeviceOrder, _settings.PlaybackSwitchCount) = DeviceOrderReconciler.MergeVisibleOrder(
+            _settings.PlaybackDeviceOrder, _settings.PlaybackSwitchCount, _presentPlaybackIds, deviceIds, aboveCount);
         _settingsStore.Save(_settings);
 
-        _playbackDeviceSwitcher.SetSwitchList(deviceIds.Take(aboveCount).ToList());
+        // Absent switch-list devices stay in the list; DeviceSwitcher skips them until replugged.
+        _playbackDeviceSwitcher.SetSwitchList(
+            _settings.PlaybackDeviceOrder.Take(_settings.PlaybackSwitchCount).ToList());
     }
 
     private void OnRecordingReordered()
     {
         RenderRecordingList();
-        _settings.RecordingDeviceOrder = _recordingItems.Select(d => d.DeviceId).ToList();
+        (_settings.RecordingDeviceOrder, _) = DeviceOrderReconciler.MergeVisibleOrder(
+            _settings.RecordingDeviceOrder, 0, _presentRecordingIds,
+            _recordingItems.Select(d => d.DeviceId).ToList(), 0);
         _settingsStore.Save(_settings);
     }
 
@@ -251,6 +262,8 @@ public partial class SettingsWindow : Window
 
     private void GroupsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        RenameGroupButton.IsEnabled = GroupsListBox.SelectedItem is GroupDefinition selected
+            && GroupRenamePolicy.CanRename(selected.Id);
         RefreshMappingsList();
     }
 
@@ -271,7 +284,7 @@ public partial class SettingsWindow : Window
 
     private void RenameGroup_Click(object sender, RoutedEventArgs e)
     {
-        if (GroupsListBox.SelectedItem is not GroupDefinition group)
+        if (GroupsListBox.SelectedItem is not GroupDefinition group || !GroupRenamePolicy.CanRename(group.Id))
             return;
 
         var dialog = new TextInputDialog("Rename group:", group.Name) { Owner = this };
@@ -286,6 +299,7 @@ public partial class SettingsWindow : Window
         _volumeState.GetGroup(group.Id).Name = newName;
         _settingsStore.Save(_settings);
 
+        (Owner as MainWindow)?.RefreshStripTitles();
         LoadGroupsTab();
     }
 

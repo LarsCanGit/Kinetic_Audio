@@ -68,16 +68,6 @@ public class JsonAppSettingsStoreTests : IDisposable
         Assert.Equal(settings.Groups.Select(g => (g.Id, g.Name)), loaded.Groups.Select(g => (g.Id, g.Name)));
     }
 
-    [Fact]
-    public void Reconcile_DropsStaleIdsAndAppendsNewOnesToBottom()
-    {
-        var stored = new List<string> { "old-1", "still-here", "old-2" };
-        var current = new List<string> { "still-here", "new-device" };
-
-        var result = DeviceOrderReconciler.Reconcile(stored, current);
-
-        Assert.Equal(new[] { "still-here", "new-device" }, result);
-    }
 
     [Fact]
     public void DefaultGroups_HasFiveWellKnownGroups()

@@ -52,9 +52,13 @@ public sealed class VolumeDriftReconciler : IDisposable
     {
         foreach (var session in _sessionProvider.GetActiveSessions())
         {
+            // Captured before the read: if a fader moves between the read and the reconcile, the
+            // reading is stale and must not be taken as drift.
+            var version = _volumeStateManager.Version;
+
             // The session can expire between GetActiveSessions and the read; skip it.
             if (_sessionProvider.TryGetSessionVolume(session.SessionKey, out var actualVolume))
-                _volumeStateManager.ReconcileExternalVolume(session.SessionKey, actualVolume);
+                _volumeStateManager.ReconcileExternalVolume(session.SessionKey, actualVolume, version);
         }
     }
 

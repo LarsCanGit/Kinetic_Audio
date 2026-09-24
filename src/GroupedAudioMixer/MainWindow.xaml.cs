@@ -16,14 +16,13 @@ namespace KineticAudio;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private const double FaderMinDb = -60.0;
-    private const double FaderMaxDb = 12.0;
     private const int MeterSegmentCount = 14;
-    private static readonly double[] TickValuesDb = { 12, 0, -12, -24, -36, -48, -60 };
+    private static readonly double[] TickValuesDb = { 0, -12, -24, -36, -48, -60 };
 
     private readonly VolumeStateManager _volumeState;
     private readonly IAudioSessionProvider _sessionProvider;
     private bool _isInitializing = true;
+    private bool _isSyncingFromState;
     private Forms.NotifyIcon? _trayIcon;
 
     public ObservableCollection<GroupStripViewModel> Strips { get; } = new();
@@ -62,11 +61,23 @@ public partial class MainWindow : Window
         // dispatcher before touching the bound SessionChips collections. BeginInvoke, not Invoke:
         // EffectiveVolumeChanged is raised under VolumeStateManager's lock, and blocking that
         // thread on the UI thread (which may itself be waiting for the lock) would deadlock.
-        _volumeState.EffectiveVolumeChanged += (_, _) => Dispatcher.BeginInvoke(RebuildAllSessionCards);
+        _volumeState.EffectiveVolumeChanged += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            SyncFadersFromState();
+            RebuildAllSessionCards();
+        });
         _sessionProvider.SessionRemoved += (_, _) => Dispatcher.BeginInvoke(RebuildAllSessionCards);
         RebuildAllSessionCards();
 
         _isInitializing = false;
+    }
+
+    /// <summary>Re-reads group names into the strip headers (after a rename in Settings).</summary>
+    public void RefreshStripTitles()
+    {
+        foreach (var strip in Strips)
+            if (!strip.IsMasterStrip)
+                strip.Title = _volumeState.GetGroup(strip.GroupId!).Name.ToUpperInvariant();
     }
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -174,7 +185,8 @@ public partial class MainWindow : Window
             var db = TickValuesDb[i];
             var label = new TextBlock
             {
-                Text = db.ToString("0"),
+                // Bottom stop is silence, not -60 dB.
+                Text = db <= FaderScale.MinDb ? "-∞" : db.ToString("0"),
                 Style = (Style)tickGrid.FindResource("TickLabelStyle"),
                 Foreground = db == 0
                     ? (Brush)tickGrid.FindResource("AmberBrush")
@@ -238,13 +250,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private static float LinearFromDb(double db) => (float)Math.Pow(10, db / 20.0);
+    private static float LinearFromDb(double db) => FaderScale.LinearFromDb(db);
 
-    private static double DbFromLinear(float linear) => linear <= 0f ? FaderMinDb : 20.0 * Math.Log10(linear);
+    private static double DbFromLinear(float linear) => FaderScale.DbFromLinear(linear);
 
-    private static double PercentOfRange(double db) => (db - FaderMinDb) / (FaderMaxDb - FaderMinDb);
+    private static double PercentOfRange(double db) => FaderScale.FractionFromDb(db);
 
-    private static string FormatPercent(double db) => $"{Math.Round(PercentOfRange(db) * 100)}%";
+    private static string FormatPercent(double db) => $"{FaderScale.PercentFromDb(db)}%";
 
     private void Fader_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -256,7 +268,7 @@ public partial class MainWindow : Window
         if (strip.MeterGridElement != null)
             UpdateMeter(strip.MeterGridElement, PercentOfRange(e.NewValue));
 
-        if (_isInitializing)
+        if (_isInitializing || _isSyncingFromState)
             return;
 
         if (strip.IsMasterStrip)
@@ -279,6 +291,35 @@ public partial class MainWindow : Window
         else
         {
             if (isMuted) _volumeState.MuteGroup(strip.GroupId!); else _volumeState.UnmuteGroup(strip.GroupId!);
+        }
+    }
+
+    /// <summary>
+    /// Moves group faders to match state changed from outside the UI (external volume drift
+    /// reconciled by <see cref="VolumeDriftReconciler"/>). Faders already matching state are left
+    /// alone so a sync never nudges a fader the user just set.
+    /// </summary>
+    private void SyncFadersFromState()
+    {
+        _isSyncingFromState = true;
+        try
+        {
+            foreach (var strip in Strips)
+            {
+                if (strip.IsMasterStrip)
+                    continue;
+
+                var stateVolume = _volumeState.GetGroup(strip.GroupId!).Volume;
+                var faderVolume = LinearFromDb(strip.FaderValueDb);
+                if (Math.Abs(faderVolume - stateVolume) <= 0.005f)
+                    continue;
+
+                strip.FaderValueDb = DbFromLinear(stateVolume);
+            }
+        }
+        finally
+        {
+            _isSyncingFromState = false;
         }
     }
 

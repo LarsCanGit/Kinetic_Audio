@@ -139,11 +139,11 @@
             </Setter>
         </Style>
 
-        <!-- Vertical fader: -60dB to +12dB linear range, min at bottom, max at top, per spec. -->
+        <!-- Vertical fader: -60dB to 0dB (FaderScale), bottom stop is silence, top is full volume. -->
         <Style x:Key="VerticalFaderStyle" TargetType="Slider">
             <Setter Property="Orientation" Value="Vertical"/>
             <Setter Property="Minimum" Value="-60"/>
-            <Setter Property="Maximum" Value="12"/>
+            <Setter Property="Maximum" Value="0"/>
             <Setter Property="SmallChange" Value="0.5"/>
             <Setter Property="LargeChange" Value="6"/>
             <Setter Property="IsSnapToTickEnabled" Value="True"/>
