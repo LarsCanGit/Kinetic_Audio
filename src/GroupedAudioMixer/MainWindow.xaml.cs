@@ -4,7 +4,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using KineticAudio.Core.Audio;
+using KineticAudio.Core.Session;
 using KineticAudio.Core.Settings;
 using KineticAudio.Core.Volume;
 using Forms = System.Windows.Forms;
@@ -21,18 +23,22 @@ public partial class MainWindow : Window
 
     private readonly VolumeStateManager _volumeState;
     private readonly IAudioSessionProvider _sessionProvider;
+    private readonly SessionGroupLinker _sessionGroupLinker;
+    private DispatcherTimer? _noticeTimer;
+    private Point _chipDragStart;
     private bool _isInitializing = true;
     private bool _isSyncingFromState;
     private Forms.NotifyIcon? _trayIcon;
 
     public ObservableCollection<GroupStripViewModel> Strips { get; } = new();
 
-    public MainWindow(VolumeStateManager volumeState, IAudioSessionProvider sessionProvider)
+    public MainWindow(VolumeStateManager volumeState, IAudioSessionProvider sessionProvider, SessionGroupLinker sessionGroupLinker)
     {
         InitializeComponent();
 
         _volumeState = volumeState;
         _sessionProvider = sessionProvider;
+        _sessionGroupLinker = sessionGroupLinker;
 
         Width = SystemParameters.PrimaryScreenWidth / 2;
         Height = SystemParameters.PrimaryScreenHeight / 2;
@@ -333,15 +339,129 @@ public partial class MainWindow : Window
                 continue;
 
             strip.SessionChips.Clear();
+            var seenExecutables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var session in sessions)
             {
                 if (_volumeState.GetGroupIdForSession(session.SessionKey) != strip.GroupId)
                     continue;
 
-                strip.SessionChips.Add(new SessionChipViewModel(session.SessionKey, session.DisplayName));
+                // One chip per executable (an app can open several sessions); a session with no
+                // executable path keeps its own chip keyed by session so it still shows up.
+                if (!seenExecutables.Add(string.IsNullOrEmpty(session.ExecutablePath) ? session.SessionKey : session.ExecutablePath))
+                    continue;
+
+                strip.SessionChips.Add(new SessionChipViewModel(session.ExecutablePath, session.DisplayName, strip.GroupId));
             }
 
             strip.HasNoSessions = strip.SessionChips.Count == 0;
         }
+    }
+
+    /// <summary>
+    /// Surfaces a stale executable-to-group mapping that was moved to the default group (#13), so
+    /// the fallback isn't silent. Must be called on the UI thread.
+    /// </summary>
+    public void ShowMappingFallback(MappingFallbackEventArgs e)
+    {
+        var appName = System.IO.Path.GetFileNameWithoutExtension(e.ExecutablePath);
+        var fallbackName = _volumeState.HasGroup(e.FallbackGroupId) ? _volumeState.GetGroup(e.FallbackGroupId).Name : e.FallbackGroupId;
+        ShowNotice($"{appName}'s saved group no longer exists. Moved to {fallbackName}.");
+    }
+
+    private void ShowNotice(string text)
+    {
+        NoticeText.Text = text;
+        NoticeText.Visibility = Visibility.Visible;
+
+        _noticeTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        _noticeTimer.Stop();
+        _noticeTimer.Tick -= NoticeTimer_Tick;
+        _noticeTimer.Tick += NoticeTimer_Tick;
+        _noticeTimer.Start();
+    }
+
+    private void NoticeTimer_Tick(object? sender, EventArgs e) => HideNotice();
+
+    private void NoticeText_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        HideNotice();
+        e.Handled = true; // don't start a window drag from the header
+    }
+
+    private void HideNotice()
+    {
+        _noticeTimer?.Stop();
+        NoticeText.Visibility = Visibility.Collapsed;
+    }
+
+    // Drag-to-group (#3): drag an app chip from one strip's session card onto another group strip.
+
+    private void Chip_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        _chipDragStart = e.GetPosition(this);
+
+    private void Chip_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        if (sender is not FrameworkElement { DataContext: SessionChipViewModel chip } element || !chip.CanDrag) return;
+
+        var delta = e.GetPosition(this) - _chipDragStart;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        // Outline just the chip being dragged, for the duration of the drag.
+        var chipBorder = element as Border;
+        if (chipBorder is not null)
+        {
+            chipBorder.BorderBrush = (Brush)FindResource("AmberBrush");
+        }
+
+        try
+        {
+            DragDrop.DoDragDrop(element, new DataObject(typeof(SessionChipViewModel), chip), DragDropEffects.Move);
+        }
+        finally
+        {
+            chipBorder?.ClearValue(Border.BorderBrushProperty);
+            foreach (var strip in Strips) strip.IsDropTarget = false;
+        }
+    }
+
+    private static bool TryGetDrop(object sender, DragEventArgs e, out GroupStripViewModel strip, out SessionChipViewModel chip)
+    {
+        strip = null!;
+        chip = null!;
+        if (sender is not FrameworkElement { DataContext: GroupStripViewModel target } || !target.AcceptsSessionDrop) return false;
+        if (e.Data.GetData(typeof(SessionChipViewModel)) is not SessionChipViewModel dragged) return false;
+        // The drag starts over the chip's own strip; don't highlight or accept a no-op move.
+        if (dragged.GroupId == target.GroupId) return false;
+        strip = target;
+        chip = dragged;
+        return true;
+    }
+
+    private void Strip_DragOver(object sender, DragEventArgs e)
+    {
+        var accepts = TryGetDrop(sender, e, out var strip, out _);
+        e.Effects = accepts ? DragDropEffects.Move : DragDropEffects.None;
+        if (accepts) strip.IsDropTarget = true;
+        e.Handled = true;
+    }
+
+    private void Strip_DragLeave(object sender, DragEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: GroupStripViewModel strip })
+            strip.IsDropTarget = false;
+    }
+
+    private void Strip_Drop(object sender, DragEventArgs e)
+    {
+        if (!TryGetDrop(sender, e, out var strip, out var chip)) return;
+        strip.IsDropTarget = false;
+        e.Handled = true;
+
+        // Persists through ExecutableGroupMap's single writer and reassigns live sessions; the
+        // resulting EffectiveVolumeChanged rebuilds the session cards.
+        _sessionGroupLinker.AssignExecutableToGroup(chip.ExecutablePath, strip.GroupId!);
     }
 }

@@ -186,4 +186,55 @@ public class SessionGroupLinkerTests
 
         Assert.Equal(0.25f, provider.GetSessionVolume("deviceB|discord"), 3);
     }
+
+    [Fact]
+    public void MappingToMissingGroup_FallsBackToDefault_RewritesMapping_AndRaisesNotice()
+    {
+        // #13: a stale map entry must not fall back silently. The fallback is a map mutation
+        // (D9), so the entry is rewritten through the single writer, and the UI is told once.
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        map.SetMapping(@"C:\Apps\discord.exe", "group-gone");
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        var notices = new List<MappingFallbackEventArgs>();
+        linker.MappingFellBack += (_, e) => notices.Add(e);
+
+        provider.RaiseSessionCreated(new AudioSessionInfo("session-1", @"C:\Apps\discord.exe", "Discord"));
+        provider.RaiseSessionCreated(new AudioSessionInfo("session-2", @"C:\Apps\discord.exe", "Discord"));
+
+        Assert.Equal("group-1", manager.GetGroupIdForSession("session-1"));
+        Assert.Equal("group-1", map.TryGetGroupId(@"C:\Apps\discord.exe"));
+        var notice = Assert.Single(notices);
+        Assert.Equal(@"C:\Apps\discord.exe", notice.ExecutablePath);
+        Assert.Equal("group-gone", notice.MissingGroupId);
+        Assert.Equal("group-1", notice.FallbackGroupId);
+    }
+
+    [Fact]
+    public void AssignExecutableToGroup_WithMissingGroup_IsRejected_AndMappingUnchanged()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        map.SetMapping(@"C:\Apps\discord.exe", "group-2");
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+
+        Assert.Throws<ArgumentException>(() => linker.AssignExecutableToGroup(@"C:\Apps\discord.exe", "group-gone"));
+        Assert.Equal("group-2", map.TryGetGroupId(@"C:\Apps\discord.exe"));
+    }
+
+    [Fact]
+    public void MappingToMissingGroup_ForSessionAlreadyRunningAtStartup_StillRaisesNotice()
+    {
+        var provider = new FakeAudioSessionProvider();
+        provider.RaiseSessionCreated(new AudioSessionInfo("session-1", @"C:\Apps\discord.exe", "Discord"));
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        map.SetMapping(@"C:\Apps\discord.exe", "group-gone");
+        var notices = new List<MappingFallbackEventArgs>();
+
+        using var linker = new SessionGroupLinker(provider, map, CreateManager(), (_, e) => notices.Add(e));
+
+        Assert.Equal("group-gone", Assert.Single(notices).MissingGroupId);
+    }
 }

@@ -75,7 +75,10 @@ public partial class App : Application
         _executableGroupMap = new ExecutableGroupMap(new JsonExecutableGroupMapStore());
 
         _sessionProvider = new CoreAudioSessionProvider();
-        _sessionGroupLinker = new SessionGroupLinker(_sessionProvider, _executableGroupMap, _volumeState);
+        // Fallback notices can fire from the constructor (sessions already running) before the
+        // window exists, and later on Core Audio threads; BeginInvoke covers both.
+        _sessionGroupLinker = new SessionGroupLinker(_sessionProvider, _executableGroupMap, _volumeState,
+            (_, e) => Dispatcher.BeginInvoke(() => (MainWindow as KineticAudio.MainWindow)?.ShowMappingFallback(e)));
         _sessionVolumeWriter = new SessionVolumeWriter(_sessionProvider, _volumeState);
         _volumeDriftReconciler = new VolumeDriftReconciler(_sessionProvider, _volumeState);
         _volumeDriftReconciler.Start();
@@ -83,7 +86,7 @@ public partial class App : Application
         if (_settings.RunAtStartup)
             StartupRegistration.SetEnabled(true, Environment.ProcessPath ?? string.Empty);
 
-        var mainWindow = new KineticAudio.MainWindow(_volumeState, _sessionProvider);
+        var mainWindow = new KineticAudio.MainWindow(_volumeState, _sessionProvider, _sessionGroupLinker);
         MainWindow = mainWindow;
         mainWindow.Show();
     }

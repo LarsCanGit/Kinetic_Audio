@@ -20,6 +20,17 @@ public sealed class GroupStripViewModel(string? groupId, bool isMasterStrip, str
 
     public bool ShowSessionCard => !IsMasterStrip;
 
+    /// <summary>Playback apps can be dragged onto any group strip except Main Out and Mic.</summary>
+    public bool AcceptsSessionDrop => !IsMasterStrip && GroupId != Core.Settings.WellKnownGroupIds.MicId;
+
+    private bool _isDropTarget;
+    /// <summary>True while a chip is dragged over this strip, for the highlight.</summary>
+    public bool IsDropTarget
+    {
+        get => _isDropTarget;
+        set => SetField(ref _isDropTarget, value);
+    }
+
     /// <summary>Stashed here (not bound) so the shared fader handler can update the right strip's
     /// VU meter, since there's no bindable audio-level source yet.</summary>
     public Grid? MeterGridElement { get; set; }

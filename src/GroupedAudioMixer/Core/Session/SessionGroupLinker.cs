@@ -29,14 +29,26 @@ public sealed class SessionGroupLinker : IDisposable
     private readonly ExecutableGroupMap _executableGroupMap;
     private readonly VolumeStateManager _volumeStateManager;
 
+    /// <summary>
+    /// Raised when an executable's stored group no longer exists and it was moved to the default
+    /// group. Raised on the session-notification thread; UI handlers must marshal.
+    /// </summary>
+    public event EventHandler<MappingFallbackEventArgs>? MappingFellBack;
+
     public SessionGroupLinker(
         IAudioSessionProvider sessionProvider,
         ExecutableGroupMap executableGroupMap,
-        VolumeStateManager volumeStateManager)
+        VolumeStateManager volumeStateManager,
+        EventHandler<MappingFallbackEventArgs>? onMappingFellBack = null)
     {
         _sessionProvider = sessionProvider;
         _executableGroupMap = executableGroupMap;
         _volumeStateManager = volumeStateManager;
+
+        // Subscribed before the initial link pass so fallbacks for already-running sessions
+        // aren't lost at startup, which is exactly when a stale config shows up.
+        if (onMappingFellBack is not null)
+            MappingFellBack += onMappingFellBack;
 
         _sessionProvider.SessionCreated += OnSessionCreated;
         _sessionProvider.SessionRemoved += OnSessionRemoved;
@@ -53,6 +65,9 @@ public sealed class SessionGroupLinker : IDisposable
     /// </summary>
     public void AssignExecutableToGroup(string executablePath, string groupId)
     {
+        if (!_volumeStateManager.HasGroup(groupId))
+            throw new ArgumentException($"Unknown group '{groupId}'.", nameof(groupId));
+
         _executableGroupMap.SetMapping(executablePath, groupId);
 
         foreach (var session in _sessionProvider.GetActiveSessions())
@@ -69,7 +84,19 @@ public sealed class SessionGroupLinker : IDisposable
 
     private void Link(AudioSessionInfo session)
     {
-        var groupId = _executableGroupMap.TryGetGroupId(session.ExecutablePath) ?? _volumeStateManager.DefaultGroupId;
+        var mappedGroupId = _executableGroupMap.TryGetGroupId(session.ExecutablePath);
+        var groupId = mappedGroupId ?? _volumeStateManager.DefaultGroupId;
+
+        if (mappedGroupId is not null && !_volumeStateManager.HasGroup(mappedGroupId))
+        {
+            // Stale mapping (the group id no longer exists, e.g. a hand-edited or older config).
+            // Rewrite it through the single writer so this only happens once, and tell the UI
+            // rather than falling back silently.
+            groupId = _volumeStateManager.DefaultGroupId;
+            _executableGroupMap.SetMapping(session.ExecutablePath, groupId);
+            MappingFellBack?.Invoke(this, new MappingFallbackEventArgs(session.ExecutablePath, mappedGroupId, groupId));
+        }
+
         _volumeStateManager.AssignSessionToGroup(session.SessionKey, groupId);
     }
 
@@ -78,4 +105,11 @@ public sealed class SessionGroupLinker : IDisposable
         _sessionProvider.SessionCreated -= OnSessionCreated;
         _sessionProvider.SessionRemoved -= OnSessionRemoved;
     }
+}
+
+public sealed class MappingFallbackEventArgs(string executablePath, string missingGroupId, string fallbackGroupId) : EventArgs
+{
+    public string ExecutablePath { get; } = executablePath;
+    public string MissingGroupId { get; } = missingGroupId;
+    public string FallbackGroupId { get; } = fallbackGroupId;
 }

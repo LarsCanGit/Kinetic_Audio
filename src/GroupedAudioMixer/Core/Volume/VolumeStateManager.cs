@@ -63,6 +63,11 @@ public sealed class VolumeStateManager
         get { lock (_lock) return _defaultGroupId; }
     }
 
+    public bool HasGroup(string groupId)
+    {
+        lock (_lock) return _groups.ContainsKey(groupId);
+    }
+
     public MixerGroup GetGroup(string groupId)
     {
         lock (_lock) return _groups[groupId];

@@ -291,6 +291,11 @@
                                        FontFamily="{StaticResource DisplayFont}" FontSize="18" FontWeight="Bold"
                                        VerticalAlignment="Center" Height="24"/>
                         </StackPanel>
+                        <!-- Transient notice (e.g. a stale group mapping fell back to the default group). Click to dismiss. -->
+                        <TextBlock x:Name="NoticeText" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   MaxWidth="820" TextTrimming="CharacterEllipsis" Cursor="Hand" ToolTip="Click to dismiss"
+                                   Foreground="{StaticResource AmberBrush}" FontFamily="{StaticResource DisplayFont}" FontSize="17"
+                                   MouseLeftButtonDown="NoticeText_MouseLeftButtonDown"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                             <!-- Settings cog: opens the Settings window. -->
                             <Grid x:Name="SettingsCog" Width="40" Height="40" Margin="0,0,16,0"
@@ -322,7 +327,7 @@
                 <!-- Rack panel -->
                 <Border Grid.Row="2" Width="1400" HorizontalAlignment="Left" VerticalAlignment="Top"
                         Background="{StaticResource RackBrush}" BorderBrush="{StaticResource RackBorderBrush}"
-                        BorderThickness="1" CornerRadius="10" Padding="32,40">
+                        BorderThickness="1" CornerRadius="10" Padding="32,26">
                     <ItemsControl ItemsSource="{Binding Strips, RelativeSource={RelativeSource AncestorType=Window}}"
                                   HorizontalAlignment="Center">
                         <ItemsControl.ItemsPanel>
@@ -337,13 +342,19 @@
                         </ItemsControl.ItemContainerStyle>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="200" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="22,20">
+                                <Border Width="200" BorderThickness="2" CornerRadius="8" Padding="13,18"
+                                        AllowDrop="True" DragOver="Strip_DragOver" DragEnter="Strip_DragOver"
+                                        DragLeave="Strip_DragLeave" Drop="Strip_Drop">
                                     <Border.Style>
                                         <Style TargetType="Border">
                                             <Setter Property="Background" Value="{StaticResource StripBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource StripBorderBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsMasterStrip}" Value="True">
                                                     <Setter Property="Background" Value="{StaticResource MasterStripBrush}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{StaticResource AmberBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -399,23 +410,35 @@
                                                       IsChecked="{Binding IsMuted, Mode=TwoWay}"
                                                       Click="MuteButton_Click"/>
 
-                                        <Border Grid.Row="4" Margin="0,14,0,0" MaxHeight="110" MinHeight="40"
+                                        <Border Grid.Row="4" Margin="0,12,0,0" Height="180"
                                                 Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
-                                                BorderThickness="1" CornerRadius="4" Padding="8,6"
+                                                BorderThickness="1" CornerRadius="4" Padding="6"
                                                 Visibility="{Binding ShowSessionCard, Converter={StaticResource BoolToVisibilityConverter}}">
                                             <Grid>
                                                 <TextBlock Text="No apps assigned" Foreground="{StaticResource SecondaryTextBrush}"
-                                                           FontFamily="{StaticResource DisplayFont}" FontSize="10"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap"
+                                                           FontFamily="{StaticResource DisplayFont}" FontSize="16"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                                                            Visibility="{Binding HasNoSessions, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                                     <ItemsControl ItemsSource="{Binding SessionChips}">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate>
-                                                                <Border Background="{StaticResource StripBrush}" CornerRadius="3"
-                                                                        Margin="0,0,0,4" Padding="6,3">
+                                                                <!-- Drag a chip onto another group strip to move the app there. -->
+                                                                <Border Background="{StaticResource StripBrush}" CornerRadius="4"
+                                                                        Margin="0,0,0,5" Padding="8,4" BorderThickness="1.5" ToolTip="{Binding DisplayName}"
+                                                                        PreviewMouseLeftButtonDown="Chip_PreviewMouseLeftButtonDown"
+                                                                        PreviewMouseMove="Chip_PreviewMouseMove">
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding CanDrag}" Value="True">
+                                                                                    <Setter Property="Cursor" Value="SizeAll"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
                                                                     <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource PrimaryTextBrush}"
-                                                                               FontFamily="{StaticResource DisplayFont}" FontSize="10"
+                                                                               FontFamily="{StaticResource DisplayFont}" FontSize="18"
                                                                                TextTrimming="CharacterEllipsis"/>
                                                                 </Border>
                                                             </DataTemplate>
