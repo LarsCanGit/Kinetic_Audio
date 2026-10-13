@@ -28,6 +28,9 @@ SetupIconFile=..\src\GroupedAudioMixer\Assets\KineticAudio.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
+; Per-user install (no UAC prompt): {autopf} resolves to %LOCALAPPDATA%\Programs, and the HKCU
+; Run-key cleanup below targets the same account that installed.
+PrivilegesRequired=lowest
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

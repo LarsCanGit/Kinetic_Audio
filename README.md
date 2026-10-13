@@ -11,6 +11,12 @@ Kinetic Audio combines the two features that no single existing tool covers well
 
 Work in progress, Phase 1 (no EQ). Not yet released.
 
+## Installing
+
+Run `KineticAudioSetup-<version>.exe`. It installs per user (no administrator prompt) to `%LOCALAPPDATA%\Programs\Kinetic Audio`. See [installer/README.md](installer/README.md) to build it.
+
+> **Upgrading from v0.1.0:** uninstall v0.1.0 before installing v0.2.0 or later. v0.1.0 was installed machine-wide (Program Files, administrator), and v0.2.0 installs per user, so the new installer will not replace it and you would end up with two copies side by side. Your settings are kept.
+
 ## Features (Phase 1)
 
 - Main fader plus four renamable groups and a dedicated Mic strip
