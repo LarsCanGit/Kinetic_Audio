@@ -42,7 +42,12 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 ; "Run at Windows startup" is managed by the app itself (Settings > General), via
 ; Core/Devices/StartupRegistration.cs writing its own HKCU Run-key value. The installer
-; deliberately does not touch that key, to avoid a second, conflicting entry.
+; deliberately does not create or modify that key during install, to avoid a second,
+; conflicting entry, but does clean it up on uninstall below so a stale entry pointing
+; at the now-deleted exe doesn't linger.
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "KineticAudio"; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent

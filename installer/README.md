@@ -14,7 +14,7 @@ Produces `KineticAudioSetup-<version>.exe`, a self-contained installer (bundles 
 
    ```powershell
    dotnet publish src/GroupedAudioMixer -c Release -r win-x64 --self-contained true `
-     -p:PublishSingleFile=false -p:IncludeNativeLibrariesForSelfExtract=true
+     -p:PublishSingleFile=false
    ```
 
    This writes to `src/GroupedAudioMixer/bin/Release/net9.0-windows/win-x64/publish/`,
