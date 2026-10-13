@@ -271,7 +271,7 @@ public partial class SettingsWindow : Window
 
         var mapped = _executableGroupMap.GetAllMappings()
             .Where(kv => string.Equals(kv.Value, group.Id, StringComparison.OrdinalIgnoreCase))
-            .Select(kv => new MappedExecutable(kv.Key, System.IO.Path.GetFileNameWithoutExtension(kv.Key)))
+            .Select(kv => new MappedExecutable(kv.Key, KineticAudio.Core.Audio.AudioSessionInfo.FriendlyNameForExecutable(kv.Key)))
             .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 

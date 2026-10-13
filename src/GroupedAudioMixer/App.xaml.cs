@@ -97,7 +97,7 @@ public partial class App : Application
         if (_settings.RunAtStartup)
             StartupRegistration.SetEnabled(true, Environment.ProcessPath ?? string.Empty);
 
-        var mainWindow = new KineticAudio.MainWindow(_volumeState, _sessionProvider, _sessionGroupLinker);
+        var mainWindow = new KineticAudio.MainWindow(_volumeState, _sessionProvider, _sessionGroupLinker, _deviceProvider);
         MainWindow = mainWindow;
         mainWindow.Show();
     }

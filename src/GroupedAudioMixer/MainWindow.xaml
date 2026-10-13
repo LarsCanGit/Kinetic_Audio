@@ -139,7 +139,7 @@
             </Setter>
         </Style>
 
-        <!-- Vertical fader: -60dB to 0dB (FaderScale), bottom stop is silence, top is full volume. -->
+        <!-- Vertical fader: linear, bottom stop is silence, top is full volume (FaderScale). -->
         <Style x:Key="VerticalFaderStyle" TargetType="Slider">
             <Setter Property="Orientation" Value="Vertical"/>
             <Setter Property="Minimum" Value="-60"/>
@@ -446,6 +446,23 @@
                                                     </ItemsControl>
                                                 </ScrollViewer>
                                             </Grid>
+                                        </Border>
+
+                                        <!-- Main Out only: the active (default) playback device, in place of the app card. -->
+                                        <Border Grid.Row="4" Margin="0,12,0,0" Height="180"
+                                                Background="{StaticResource ReadoutBgBrush}" BorderBrush="{StaticResource FaderTrackBrush}"
+                                                BorderThickness="1" CornerRadius="4" Padding="8"
+                                                Visibility="{Binding ShowDeviceCard, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="PLAYBACK DEVICE" Foreground="{StaticResource SecondaryTextBrush}"
+                                                           FontFamily="{StaticResource DisplayFont}" FontSize="13"
+                                                           HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                                <TextBlock Text="{Binding PlaybackDeviceName}" ToolTip="{Binding PlaybackDeviceName}"
+                                                           Foreground="{StaticResource MasterAccentBrush}"
+                                                           FontFamily="{StaticResource DisplayFont}" FontSize="18"
+                                                           TextWrapping="Wrap" TextAlignment="Center" MaxHeight="120"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
                                         </Border>
 
                                         <Ellipse Width="5" Height="5" Style="{StaticResource RivetStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,8,0,0"/>

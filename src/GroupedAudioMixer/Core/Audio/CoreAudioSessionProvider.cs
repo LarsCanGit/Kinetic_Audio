@@ -333,8 +333,8 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
 
     /// <summary>
     /// Attempts to add <paramref name="control"/> to <see cref="_sessions"/>. Must be called with
-    /// <see cref="_lock"/> held. Skips the system sounds session, which has no owning process, and
-    /// any session that dies while it is being read (a failed HRESULT here means the process
+    /// <see cref="_lock"/> held. The system sounds session, which has no owning process, is tracked
+    /// under <see cref="AudioSessionInfo.SystemSoundsKey"/>. Skips any session that dies while it is being read (a failed HRESULT here means the process
     /// exited or the device went away, which is expected rather than fatal).
     /// </summary>
     private AudioSessionInfo? TryTrackSession(string deviceId, IAudioSessionControl control)
@@ -344,22 +344,29 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
             control2 = (IAudioSessionControl2)control;
         }
 
-        if (control2.IsSystemSoundsSession() == 0)
-            return null;
-
-        if (control2.GetProcessId(out var processId) < 0 || processId == 0)
-            return null;
+        // The system sounds session has no owning process, so it gets a stand-in identity.
+        var isSystemSounds = control2.IsSystemSoundsSession() == 0;
 
         string executablePath;
-        try
+        if (isSystemSounds)
         {
-            using var process = Process.GetProcessById((int)processId);
-            executablePath = process.MainModule?.FileName ?? string.Empty;
+            executablePath = AudioSessionInfo.SystemSoundsKey;
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        else
         {
-            // Process already exited between session creation and enumeration.
-            return null;
+            if (control2.GetProcessId(out var processId) < 0 || processId == 0)
+                return null;
+
+            try
+            {
+                using var process = Process.GetProcessById((int)processId);
+                executablePath = process.MainModule?.FileName ?? string.Empty;
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                // Process already exited between session creation and enumeration.
+                return null;
+            }
         }
 
         if (control2.GetSessionInstanceIdentifier(out var sessionKey) < 0 || string.IsNullOrEmpty(sessionKey))
@@ -369,8 +376,14 @@ public sealed class CoreAudioSessionProvider : IAudioSessionProvider, IDisposabl
         if (_sessions.ContainsKey(sessionKey))
             return null;
 
-        if (control2.GetDisplayName(out var displayName) < 0 || string.IsNullOrWhiteSpace(displayName))
+        // Windows reports the system sounds name as a resource string (@...AudioSrv.Dll,-202).
+        string displayName;
+        if (isSystemSounds)
+            displayName = AudioSessionInfo.SystemSoundsDisplayName;
+        else if (control2.GetDisplayName(out var reportedName) < 0 || string.IsNullOrWhiteSpace(reportedName))
             displayName = Path.GetFileNameWithoutExtension(executablePath);
+        else
+            displayName = reportedName;
 
         var volume = (ISimpleAudioVolume)control2;
         var eventSink = new SessionEventSink(this, sessionKey);

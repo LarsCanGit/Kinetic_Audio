@@ -19,6 +19,45 @@ public class SessionGroupLinkerTests
     private static AudioSessionInfo Capture(string key, string exe, string name) =>
         new(key, exe, name, AudioSessionFlow.Capture);
 
+    private static AudioSessionInfo SystemSounds(string key) =>
+        new(key, AudioSessionInfo.SystemSoundsKey, AudioSessionInfo.SystemSoundsDisplayName);
+
+    [Fact]
+    public void SystemSoundsSession_UnmappedLinksToDefaultGroup()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+
+        provider.RaiseSessionCreated(SystemSounds("sys-1"));
+
+        Assert.Equal("group-1", manager.GetGroupIdForSession("sys-1"));
+    }
+
+    [Fact]
+    public void SystemSoundsSession_MovedToGroup_PersistsForNewSession_AndScalesWithMain()
+    {
+        var provider = new FakeAudioSessionProvider();
+        var map = new ExecutableGroupMap(new FakeExecutableGroupMapStore());
+        var manager = CreateManager();
+        using var linker = new SessionGroupLinker(provider, map, manager);
+        provider.RaiseSessionCreated(SystemSounds("sys-1"));
+
+        linker.AssignExecutableToGroup(AudioSessionInfo.SystemSoundsKey, "group-2");
+        provider.RaiseSessionRemoved("sys-1");
+        provider.RaiseSessionCreated(SystemSounds("sys-2"));
+
+        Assert.Equal("group-2", manager.GetGroupIdForSession("sys-2"));
+    }
+
+    [Fact]
+    public void FriendlyNameForExecutable_MapsSentinelAndPaths()
+    {
+        Assert.Equal("System Sounds", AudioSessionInfo.FriendlyNameForExecutable(AudioSessionInfo.SystemSoundsKey));
+        Assert.Equal("discord", AudioSessionInfo.FriendlyNameForExecutable(@"C:\Apps\discord.exe"));
+    }
+
     [Fact]
     public void CaptureSession_LinksToCaptureGroup_IgnoringExecutableMapping()
     {

@@ -20,7 +20,22 @@ public sealed record AudioSessionInfo(
     string SessionKey,
     string ExecutablePath,
     string DisplayName,
-    AudioSessionFlow Flow = AudioSessionFlow.Render);
+    AudioSessionFlow Flow = AudioSessionFlow.Render)
+{
+    /// <summary>
+    /// Stand-in <see cref="ExecutablePath"/> for the Windows system sounds session, which has no
+    /// owning process. Lets it use the same exe-to-group map as any app.
+    /// </summary>
+    public const string SystemSoundsKey = "system-sounds";
+
+    public const string SystemSoundsDisplayName = "System Sounds";
+
+    /// <summary>Human-readable name for a mapped executable key (path or <see cref="SystemSoundsKey"/>).</summary>
+    public static string FriendlyNameForExecutable(string executablePath) =>
+        string.Equals(executablePath, SystemSoundsKey, StringComparison.OrdinalIgnoreCase)
+            ? SystemSoundsDisplayName
+            : System.IO.Path.GetFileNameWithoutExtension(executablePath);
+}
 
 public enum AudioSessionFlow
 {

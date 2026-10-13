@@ -29,7 +29,7 @@ public class FaderScaleTests
 
     [Theory]
     [InlineData(1f, 0.0)]
-    [InlineData(0.5f, -6.0206)]
+    [InlineData(0.5f, -30.0)]
     [InlineData(0f, -60.0)]
     public void DbFromLinear_MapsStateVolumeToFaderPosition(float linear, double expectedDb)
     {
@@ -39,6 +39,20 @@ public class FaderScaleTests
     [Fact]
     public void DbFromLinear_BelowFaderRange_SitsAtBottom()
     {
-        Assert.Equal(FaderScale.MinDb, FaderScale.DbFromLinear(0.0001f));
+        Assert.Equal(FaderScale.MinDb, FaderScale.DbFromLinear(-0.5f));
+    }
+
+    [Theory]
+    [InlineData(0.25f)]
+    [InlineData(0.5f)]
+    [InlineData(0.68f)]
+    public void FaderPosition_MatchesWindowsMixerSlider(float volume)
+    {
+        // Regression: a dB-scaled fader put 25% volume near the bottom of the travel, while the
+        // Windows mixer slider (linear in the scalar) showed it a quarter of the way up.
+        var position = FaderScale.DbFromLinear(volume);
+        Assert.Equal(volume, FaderScale.FractionFromDb(position), precision: 4);
+        Assert.Equal(volume, FaderScale.LinearFromDb(position), precision: 4);
+        Assert.Equal((int)Math.Round(volume * 100), FaderScale.PercentFromDb(position));
     }
 }

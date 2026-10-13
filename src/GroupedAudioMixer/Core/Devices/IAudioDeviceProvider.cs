@@ -9,6 +9,12 @@ namespace KineticAudio.Core.Devices;
 /// </summary>
 public interface IAudioDeviceProvider
 {
+    /// <summary>
+    /// Raised when the default device of a kind changes, whether by this app or externally (e.g.
+    /// the Windows sound settings). May fire on a non-UI thread.
+    /// </summary>
+    event EventHandler<AudioDeviceKind>? DefaultDeviceChanged;
+
     /// <summary>All active endpoint devices of the given kind, in enumeration order.</summary>
     IReadOnlyList<AudioDeviceInfo> GetDevices(AudioDeviceKind kind);
 

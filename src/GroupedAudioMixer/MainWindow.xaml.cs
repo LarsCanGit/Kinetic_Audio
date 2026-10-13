@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using KineticAudio.Core.Audio;
+using KineticAudio.Core.Devices;
 using KineticAudio.Core.Session;
 using KineticAudio.Core.Settings;
 using KineticAudio.Core.Volume;
@@ -24,6 +25,8 @@ public partial class MainWindow : Window
     private readonly VolumeStateManager _volumeState;
     private readonly IAudioSessionProvider _sessionProvider;
     private readonly SessionGroupLinker _sessionGroupLinker;
+    private readonly IAudioDeviceProvider _deviceProvider;
+    private readonly GroupStripViewModel _mainStrip;
     private DispatcherTimer? _noticeTimer;
     private Point _chipDragStart;
     private bool _isInitializing = true;
@@ -34,21 +37,23 @@ public partial class MainWindow : Window
 
     public ObservableCollection<GroupStripViewModel> Strips { get; } = new();
 
-    public MainWindow(VolumeStateManager volumeState, IAudioSessionProvider sessionProvider, SessionGroupLinker sessionGroupLinker)
+    public MainWindow(VolumeStateManager volumeState, IAudioSessionProvider sessionProvider, SessionGroupLinker sessionGroupLinker,
+        IAudioDeviceProvider deviceProvider)
     {
         InitializeComponent();
 
         _volumeState = volumeState;
         _sessionProvider = sessionProvider;
         _sessionGroupLinker = sessionGroupLinker;
+        _deviceProvider = deviceProvider;
 
         Width = SystemParameters.PrimaryScreenWidth / 2;
         Height = SystemParameters.PrimaryScreenHeight / 2;
         MinWidth = MaxWidth = Width;
         MinHeight = MaxHeight = Height;
 
-        var mainStrip = new GroupStripViewModel(groupId: null, isMasterStrip: true, title: "MAIN OUT");
-        Strips.Add(mainStrip);
+        _mainStrip = new GroupStripViewModel(groupId: null, isMasterStrip: true, title: "MAIN OUT");
+        Strips.Add(_mainStrip);
         foreach (var group in _volumeState.Groups)
         {
             var strip = new GroupStripViewModel(group.Id, isMasterStrip: false, title: group.Name.ToUpperInvariant());
@@ -78,6 +83,14 @@ public partial class MainWindow : Window
         _sessionProvider.SessionRemoved += (_, _) => Dispatcher.BeginInvoke(RebuildAllSessionCards);
         RebuildAllSessionCards();
 
+        // Fires on a Core Audio thread for hotkey switches and external (Windows settings) changes alike.
+        _deviceProvider.DefaultDeviceChanged += (_, kind) =>
+        {
+            if (kind == AudioDeviceKind.Playback)
+                Dispatcher.BeginInvoke(RefreshPlaybackDeviceName);
+        };
+        RefreshPlaybackDeviceName();
+
         CreateTrayIcon();
 
         _isInitializing = false;
@@ -89,6 +102,14 @@ public partial class MainWindow : Window
         foreach (var strip in Strips)
             if (!strip.IsMasterStrip)
                 strip.Title = _volumeState.GetGroup(strip.GroupId!).Name.ToUpperInvariant();
+    }
+
+    private void RefreshPlaybackDeviceName()
+    {
+        var defaultId = _deviceProvider.GetDefaultDeviceId(AudioDeviceKind.Playback);
+        _mainStrip.PlaybackDeviceName = defaultId is null
+            ? "No playback device"
+            : _deviceProvider.GetDevices(AudioDeviceKind.Playback).FirstOrDefault(d => d.DeviceId == defaultId)?.DisplayName ?? defaultId;
     }
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -211,8 +232,7 @@ public partial class MainWindow : Window
             var db = TickValuesDb[i];
             var label = new TextBlock
             {
-                // Bottom stop is silence, not -60 dB.
-                Text = db <= FaderScale.MinDb ? "-∞" : db.ToString("0"),
+                Text = FaderScale.PercentFromDb(db).ToString(),
                 Style = (Style)tickGrid.FindResource("TickLabelStyle"),
                 Foreground = db == 0
                     ? (Brush)tickGrid.FindResource("AmberBrush")
@@ -398,7 +418,7 @@ public partial class MainWindow : Window
     /// </summary>
     public void ShowMappingFallback(MappingFallbackEventArgs e)
     {
-        var appName = System.IO.Path.GetFileNameWithoutExtension(e.ExecutablePath);
+        var appName = AudioSessionInfo.FriendlyNameForExecutable(e.ExecutablePath);
         var fallbackName = _volumeState.HasGroup(e.FallbackGroupId) ? _volumeState.GetGroup(e.FallbackGroupId).Name : e.FallbackGroupId;
         // The group can still exist when it's the Mic strip, which never holds playback.
         ShowNotice(_volumeState.HasGroup(e.MissingGroupId)

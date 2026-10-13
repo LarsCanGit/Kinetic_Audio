@@ -21,10 +21,15 @@ namespace KineticAudio.Core.Devices;
 public sealed class CoreAudioDeviceProvider : IAudioDeviceProvider
 {
     private readonly IMMDeviceEnumerator _deviceEnumerator;
+    private readonly DefaultDeviceNotificationSink _notificationSink;
+
+    public event EventHandler<AudioDeviceKind>? DefaultDeviceChanged;
 
     public CoreAudioDeviceProvider()
     {
         _deviceEnumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+        _notificationSink = new DefaultDeviceNotificationSink(this);
+        ThrowIfFailed(_deviceEnumerator.RegisterEndpointNotificationCallback(_notificationSink));
     }
 
     public IReadOnlyList<AudioDeviceInfo> GetDevices(AudioDeviceKind kind)
@@ -169,5 +174,32 @@ public sealed class CoreAudioDeviceProvider : IAudioDeviceProvider
         return hresult;
     }
 
-    public void Dispose() => Marshal.ReleaseComObject(_deviceEnumerator);
+    public void Dispose()
+    {
+        _deviceEnumerator.UnregisterEndpointNotificationCallback(_notificationSink);
+        Marshal.ReleaseComObject(_deviceEnumerator);
+    }
+
+    /// <summary>
+    /// Forwards default-device changes. Only the multimedia role is reported, matching
+    /// <see cref="GetDefaultDeviceId"/>; <see cref="SetDefaultDevice"/> changes all three roles at
+    /// once, so reporting every role would raise the event three times per switch.
+    /// </summary>
+    private sealed class DefaultDeviceNotificationSink(CoreAudioDeviceProvider owner) : IMMNotificationClient
+    {
+        public int OnDefaultDeviceChanged(EDataFlow flow, ERole role, string? defaultDeviceId)
+        {
+            if (role == ERole.eMultimedia)
+                owner.DefaultDeviceChanged?.Invoke(owner, flow == EDataFlow.eCapture ? AudioDeviceKind.Recording : AudioDeviceKind.Playback);
+            return 0;
+        }
+
+        public int OnDeviceStateChanged(string deviceId, uint newState) => 0;
+
+        public int OnDeviceAdded(string deviceId) => 0;
+
+        public int OnDeviceRemoved(string deviceId) => 0;
+
+        public int OnPropertyValueChanged(string deviceId, PROPERTYKEY key) => 0;
+    }
 }

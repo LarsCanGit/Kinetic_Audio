@@ -21,6 +21,11 @@ public sealed class FakeAudioDeviceProvider : IAudioDeviceProvider
     public string? GetDefaultDeviceId(AudioDeviceKind kind) =>
         _defaultIdByKind.GetValueOrDefault(kind);
 
-    public void SetDefaultDevice(AudioDeviceKind kind, string deviceId) =>
+    public event EventHandler<AudioDeviceKind>? DefaultDeviceChanged;
+
+    public void SetDefaultDevice(AudioDeviceKind kind, string deviceId)
+    {
         _defaultIdByKind[kind] = deviceId;
+        DefaultDeviceChanged?.Invoke(this, kind);
+    }
 }

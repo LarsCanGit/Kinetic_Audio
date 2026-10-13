@@ -20,6 +20,16 @@ public sealed class GroupStripViewModel(string? groupId, bool isMasterStrip, str
 
     public bool ShowSessionCard => !IsMasterStrip;
 
+    /// <summary>The Main Out strip shows the active playback device where group strips show apps.</summary>
+    public bool ShowDeviceCard => IsMasterStrip;
+
+    private string _playbackDeviceName = string.Empty;
+    public string PlaybackDeviceName
+    {
+        get => _playbackDeviceName;
+        set => SetField(ref _playbackDeviceName, value);
+    }
+
     /// <summary>Playback apps can be dragged onto any group strip except Main Out and Mic.</summary>
     public bool AcceptsSessionDrop => !IsMasterStrip && GroupId != Core.Settings.WellKnownGroupIds.MicId;
 
