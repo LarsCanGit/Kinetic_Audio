@@ -32,8 +32,9 @@ Produces `KineticAudioSetup-<version>.exe`, a self-contained installer (bundles 
 
 ## Notes
 
-- Bump `<Version>` in `src/GroupedAudioMixer/KineticAudio.csproj` and
-  `MyAppVersion` in `installer/KineticAudio.iss` together for each release.
+- Bump `<Version>` in `Directory.Build.props` (repo root) for each release. It is the only
+  place the version lives: the installer reads it from the published exe (so re-run step 1
+  before step 2), and the Settings window shows it.
 - `installer/output/` is gitignored; it's build output, not source.
 - Code-signing isn't set up yet (unsigned installers trigger a SmartScreen warning on
   first run). Revisit once Phase 2 bundles the third-party VST3 fork binary, per CLAUDE.md.

@@ -33,6 +33,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(App app)
     {
         InitializeComponent();
+        VersionText.Text = $"Kinetic Audio v{KineticAudio.Core.AppVersion.Current}";
 
         _app = app;
         _settings = app.Settings;

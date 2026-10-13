@@ -1,0 +1,9 @@
+<Project>
+
+  <!-- Single source of truth for the app version. The installer reads it from the built exe
+       (installer/KineticAudio.iss), and the Settings window shows it. Bump it here only. -->
+  <PropertyGroup>
+    <Version>0.2.0</Version>
+  </PropertyGroup>
+
+</Project>

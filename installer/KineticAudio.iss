@@ -3,10 +3,13 @@
 ; with ISCC.exe (from the Inno Setup install) or the Inno Setup IDE.
 
 #define MyAppName "Kinetic Audio"
-#define MyAppVersion "0.1.0"
 #define MyAppPublisher "Lars Hansen"
 #define MyAppExeName "KineticAudio.exe"
 #define PublishDir "..\src\GroupedAudioMixer\bin\Release\net9.0-windows\win-x64\publish"
+; The version comes from the published exe, which gets it from Directory.Build.props, so the
+; installer can't drift from the app. The file version is 4-part ("0.1.0.0"); drop the last part.
+#define FullVersion GetVersionNumbersString(PublishDir + "\" + MyAppExeName)
+#define MyAppVersion Copy(FullVersion, 1, RPos(".", FullVersion) - 1)
 
 [Setup]
 AppId={{6E5A2C2B-6E3E-4A6F-9C6C-5B9C2E9C0E5A}

@@ -333,8 +333,12 @@
         </TabControl>
 
         <Border Grid.Row="2" Background="{StaticResource HeaderBrush}">
-            <Button x:Name="DoneButton" Style="{StaticResource DoneButtonStyle}" Content="Done"
-                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,16,0" Click="CloseButton_Click"/>
+            <Grid>
+                <TextBlock x:Name="VersionText" Foreground="{StaticResource SubTextBrush}" FontSize="11"
+                           HorizontalAlignment="Left" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <Button x:Name="DoneButton" Style="{StaticResource DoneButtonStyle}" Content="Done"
+                        HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,16,0" Click="CloseButton_Click"/>
+            </Grid>
         </Border>
     </Grid>
 </Window>
